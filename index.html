@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DPE-PA | DITEC - Editor CAD Total (Portas + Paredes + Colunas + Móveis + Pontos)</title>
+  <title>DPE-PA | DITEC - Editor CAD Total (Busca de Pontos + Precisão + Portas)</title>
   <style>
     :root {
       --bg-dark: #0f172a;
@@ -14,7 +14,6 @@
       --brand-blue: #0284c7;
       --brand-cyan: #38bdf8;
       --wall-stroke: #0f172a;
-      --wall-fill: #334155;
       --furniture-stroke: #1e293b;
       --furniture-fill: #f8fafc;
       --chair-fill: #e2e8f0;
@@ -29,7 +28,7 @@
     #viewport-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; cursor: grab; }
     #viewport-container.panning { cursor: grabbing; }
     #viewport-container.add-mode { cursor: crosshair !important; }
-    #viewport-container.select-mode { cursor: default !important; }
+    #viewport-container.select-mode { cursor: crosshair !important; }
 
     #cad-header {
       position: absolute; top: 0; left: 0; right: 0; height: 56px;
@@ -44,6 +43,18 @@
     .titles p { font-size: 10.5px; color: var(--text-muted); }
     .header-btns { display: flex; gap: 5px; align-items: center; }
 
+    /* Barra de Busca de Pontos */
+    .search-box-container {
+      display: flex; align-items: center; background: #0f172a;
+      border: 1px solid var(--panel-border); border-radius: 4px; padding: 2px 4px;
+    }
+    .search-input {
+      background: transparent; border: none; outline: none;
+      color: #fff; font-family: "Consolas", monospace; font-size: 11px;
+      padding: 4px 6px; width: 110px;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+
     .tool-btn {
       background: #1e293b; color: var(--text-main); border: 1px solid var(--panel-border);
       padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;
@@ -55,12 +66,28 @@
     .tool-btn.select-active { background: #9333ea !important; border-color: #c084fc !important; color: #fff; }
     .tool-btn.danger { background: #dc2626 !important; border-color: #ef4444 !important; color: #fff; }
 
+    /* Notificação Toast na Tela */
+    #toast-msg {
+      position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+      background: rgba(220, 38, 38, 0.95); color: #ffffff; padding: 10px 20px;
+      border-radius: 6px; font-size: 12px; font-weight: 700; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      z-index: 300; display: none; backdrop-filter: blur(8px); border: 1px solid #f87171;
+    }
+
+    /* Painel de Camadas Flutuante e Móvel */
     #layer-manager {
       position: absolute; top: 66px; right: 18px; background: var(--panel-bg);
-      border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px 16px;
+      border: 1px solid var(--panel-border); border-radius: 8px; padding: 0 0 12px 0;
       width: 250px; z-index: 99; box-shadow: 0 8px 24px rgba(0,0,0,0.4); backdrop-filter: blur(10px);
     }
-    .panel-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--panel-border); }
+    .panel-header-drag {
+      background: #1e293b; padding: 8px 12px; border-top-left-radius: 8px; border-top-right-radius: 8px;
+      cursor: move; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--panel-border); margin-bottom: 8px;
+    }
+    .panel-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--brand-cyan); }
+    .panel-drag-icon { font-size: 10px; color: var(--text-muted); }
+    .layer-body { padding: 0 16px; }
     .layer-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; font-size: 11.5px; }
     .layer-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
     .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
@@ -102,39 +129,39 @@
     .chair-seat { fill: var(--chair-fill); stroke: #0f172a; stroke-width: 1.4; rx: 3px; }
     .chair-back { stroke: #0f172a; stroke-width: 1.8; fill: none; stroke-linecap: round; }
 
-    /* Estilo de Portas Dinâmicas */
     .door-item { cursor: move; }
-    .door-leaf-line { stroke: var(--door-leaf-stroke); stroke-width: 3; stroke-linecap: square; }
-    .door-swing-arc { stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; }
+    .door-leaf-line { stroke: var(--door-leaf-stroke); stroke-width: 3.2; stroke-linecap: square; }
+    .door-swing-arc { stroke: #475569; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; }
     .door-pivot { fill: #0284c7; stroke: #0f172a; stroke-width: 1.5; }
-    .door-item:hover .door-leaf-line { stroke: var(--brand-cyan); stroke-width: 4; }
-    .door-item:hover .door-swing-arc { stroke: var(--brand-cyan); stroke-width: 2; }
+    .door-item:hover .door-leaf-line { stroke: var(--brand-cyan); stroke-width: 4.5; }
 
-    /* Paredes Editáveis */
     .editable-wall-line { stroke: var(--wall-stroke); stroke-width: 6; stroke-linecap: square; cursor: move; }
     .editable-wall-line:hover { stroke: var(--brand-cyan); }
     .wall-handle { fill: var(--brand-cyan); stroke: #0f172a; stroke-width: 1.5; cursor: grab; }
-    .wall-handle:hover { fill: #f59e0b; }
 
-    /* Colunas e Divisórias */
     .pillar-body { fill: #475569; stroke: #0f172a; stroke-width: 2; }
     .pillar-hatch { stroke: #94a3b8; stroke-width: 1.2; }
     .partition-wall { stroke: #334155; stroke-width: 4; stroke-linecap: round; }
 
-    /* Itens Editáveis */
-    .point-item, .room-text-item, .furn-item, .cftv-item, .pillar-item, .wall-item, .door-item { cursor: pointer; }
+    .point-item, .room-text-item, .furn-item, .cftv-item, .pillar-item, .door-item { cursor: pointer; }
     .point-item:hover .tag-box { stroke: var(--brand-cyan) !important; stroke-width: 2 !important; }
     .room-text-item:hover text { fill: var(--brand-blue) !important; }
     .furn-item:hover .table-top { stroke: var(--brand-cyan) !important; stroke-width: 2 !important; }
-    .cftv-item:hover circle { stroke: var(--brand-cyan) !important; stroke-width: 3 !important; }
-    .pillar-item:hover .pillar-body { stroke: var(--brand-cyan) !important; stroke-width: 3 !important; }
 
-    /* Seleção */
     .selected-item .tag-box, .selected-item .table-top { stroke: #0284c7 !important; stroke-width: 2.5 !important; fill: #e0f2fe !important; }
     .selected-item circle { stroke: #0284c7 !important; stroke-width: 3.5 !important; }
-    .selected-item .pillar-body { stroke: #0284c7 !important; stroke-width: 3.5 !important; fill: #0284c7 !important; }
     .selected-item.wall-item line { stroke: #0284c7 !important; stroke-width: 8 !important; }
     .selected-item.door-item .door-leaf-line { stroke: #0284c7 !important; stroke-width: 5 !important; }
+
+    /* Destaque da Busca */
+    @keyframes pulseSearch {
+      0% { r: 10px; opacity: 1; stroke-width: 4; }
+      50% { r: 40px; opacity: 0.6; stroke-width: 8; }
+      100% { r: 60px; opacity: 0; stroke-width: 2; }
+    }
+    .search-target-halo {
+      fill: none; stroke: #f59e0b; animation: pulseSearch 1.4s ease-out infinite; pointer-events: none;
+    }
 
     .tag-box { fill: #ffffff; stroke: #15803d; stroke-width: 1.2; rx: 2px; }
     .tag-box-start { fill: #f0fdf4; stroke: #16a34a; stroke-width: 1.6; rx: 2px; }
@@ -143,16 +170,16 @@
     .tag-num-start { font-size: 8.5px; font-family: "Consolas", monospace; font-weight: 900; fill: #15803d; text-anchor: middle; dominant-baseline: central; }
     .tag-num-end { font-size: 8.5px; font-family: "Consolas", monospace; font-weight: 900; fill: #b91c1c; text-anchor: middle; dominant-baseline: central; }
 
-    .flow-path { stroke: var(--flow-color); stroke-width: 2.2; stroke-dasharray: 7 4; fill: none; opacity: 0.9; }
+    .flow-path { stroke: var(--flow-color); stroke-width: 2.4; stroke-dasharray: 8 5; fill: none; opacity: 0.95; }
 
     #selection-rect {
-      fill: rgba(2, 132, 199, 0.15); stroke: #0284c7; stroke-width: 1.5; stroke-dasharray: 4 3; display: none; pointer-events: none;
+      fill: rgba(2, 132, 199, 0.18); stroke: #0284c7; stroke-width: 2; stroke-dasharray: 4 3; display: none; pointer-events: none;
     }
-    #ghost-preview { opacity: 0.5; pointer-events: none; display: none; }
+    #ghost-preview { opacity: 0.55; pointer-events: none; display: none; }
 
     @media print {
       @page { size: A3 landscape; margin: 4mm; }
-      #cad-header, #layer-manager, #audit-box, .modal-box, .wall-handle, .door-pivot { display: none !important; }
+      #cad-header, #layer-manager, #audit-box, .modal-box, .wall-handle, .door-pivot, #toast-msg, .search-target-halo { display: none !important; }
       body, html, #viewport-container, svg { width: 100% !important; height: 100% !important; overflow: visible !important; }
     }
   </style>
@@ -165,13 +192,21 @@
         <span class="dpe-badge">DPE-PA</span>
         <div class="titles">
           <h1>Editor CAD 2º Pavimento (Rede Estruturada)</h1>
-          <p>DITEC / GPA - Controle Total de Portas, Paredes, Salas, Móveis e Pontos</p>
+          <p>DITEC / GPA - Busca de Pontos com Localização Automática</p>
         </div>
       </div>
+
       <div class="header-btns">
+        <!-- Mecanismo de Busca de Pontos -->
+        <div class="search-box-container">
+          <input type="text" id="input-point-search" class="search-input" placeholder="Buscar Ponto..." onkeydown="handleSearchKey(event)">
+          <button class="tool-btn" style="padding: 3px 8px;" onclick="searchAndLocatePoint()">Buscar</button>
+        </div>
+
         <button id="btn-undo" class="tool-btn" onclick="undo()" title="Desfazer (Ctrl+Z)" disabled>↩ Desfazer</button>
         <button id="btn-redo" class="tool-btn" onclick="redo()" title="Refazer (Ctrl+Y)" disabled>↪ Refazer</button>
         <button id="btn-mode-select" class="tool-btn" onclick="toggleSelectMode()">Modo Seleção (Box)</button>
+        <button id="btn-duplicate" class="tool-btn" style="display:none;" onclick="duplicateSelectedItems()" title="Duplicar Seleção (Ctrl+D)">Duplicar</button>
         <button id="btn-delete-selected" class="tool-btn danger" style="display:none;" onclick="deleteSelectedItems()">Excluir Selecionados</button>
         <button id="btn-mode-edit" class="tool-btn" onclick="toggleEditMode()">Modo Mover/Editar</button>
         <button id="btn-mode-adddoor" class="tool-btn" onclick="openAddDoorModal()">+ Adicionar Porta</button>
@@ -188,45 +223,54 @@
       </div>
     </header>
 
+    <!-- Toast de Notificação -->
+    <div id="toast-msg"></div>
+
     <input type="file" id="file-import" accept=".json" style="display:none;" onchange="importJSON(event)">
 
+    <!-- Painel de Camadas Móvel -->
     <aside id="layer-manager">
-      <div class="panel-title">Camadas CAD</div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-walls-outer', this.checked)">
-        <span class="swatch" style="background: #0f172a;"></span>Perímetro e Escada</label>
+      <div id="layer-header-drag" class="panel-header-drag" title="Arraste para mover o painel">
+        <span class="panel-title">Camadas CAD</span>
+        <span class="panel-drag-icon">⋮⋮ Mover</span>
       </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-doors-all', this.checked)">
-        <span class="swatch" style="background: #0284c7;"></span>Portas (Folhas & Giros)</label>
-      </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-walls-dynamic', this.checked)">
-        <span class="swatch" style="background: #1e293b;"></span>Paredes das Salas (Móveis)</label>
-      </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-pillars-all', this.checked)">
-        <span class="swatch" style="background: #475569;"></span>Colunas & Divisórias</label>
-      </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-furniture-all', this.checked)">
-        <span class="swatch" style="background: #64748b;"></span>Mobiliário Técnico</label>
-      </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-rooms', this.checked)">
-        <span class="swatch" style="background: #334155;"></span>Identificação de Salas</label>
-      </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-points', this.checked)">
-        <span class="swatch" style="background: #16a34a;"></span>Pontos RJ45</label>
-      </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-cftv-all', this.checked)">
-        <span class="swatch" style="background: #ef4444;"></span>CFTV IP & AP Wi-Fi</label>
-      </div>
-      <div class="layer-row">
-        <label><input type="checkbox" checked onchange="toggleLayer('layer-flow', this.checked)">
-        <span class="swatch" style="background: #f59e0b;"></span>Linha de Fluxo</label>
+      <div class="layer-body">
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-walls-outer', this.checked)">
+          <span class="swatch" style="background: #0f172a;"></span>Perímetro e Escada</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-doors-all', this.checked)">
+          <span class="swatch" style="background: #0284c7;"></span>Portas (Folhas & Giros)</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-walls-dynamic', this.checked)">
+          <span class="swatch" style="background: #1e293b;"></span>Paredes das Salas</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-pillars-all', this.checked)">
+          <span class="swatch" style="background: #475569;"></span>Colunas & Divisórias</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-furniture-all', this.checked)">
+          <span class="swatch" style="background: #64748b;"></span>Mobiliário Técnico</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-rooms', this.checked)">
+          <span class="swatch" style="background: #334155;"></span>Identificação de Salas</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-points', this.checked)">
+          <span class="swatch" style="background: #16a34a;"></span>Pontos RJ45</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-cftv-all', this.checked)">
+          <span class="swatch" style="background: #ef4444;"></span>CFTV IP & AP Wi-Fi</label>
+        </div>
+        <div class="layer-row">
+          <label><input type="checkbox" checked onchange="toggleLayer('layer-flow', this.checked)">
+          <span class="swatch" style="background: #f59e0b;"></span>Fluxo Automático</label>
+        </div>
       </div>
     </aside>
 
@@ -252,21 +296,23 @@
       </div>
     </div>
 
-    <!-- Modal Porta (Novo) -->
+    <!-- Modal Porta -->
     <div id="door-modal" class="modal-box">
-      <h3 id="door-modal-title">Configurar Porta</h3>
+      <h3 id="door-modal-title">Configurar Porta CAD</h3>
       <div class="form-group">
-        <label>Orientação / Sentido de Giro:</label>
-        <select id="door-modal-rot">
-          <option value="0">0° (Abre Cima/Direita)</option>
-          <option value="90">90° (Abre Baixo/Direita)</option>
-          <option value="180">180° (Abre Baixo/Esquerda)</option>
-          <option value="270">270° (Abre Cima/Esquerda)</option>
+        <label>Tipo de Abertura / Quadrante:</label>
+        <select id="door-modal-type">
+          <option value="up-left">Abertura Padrão DPE (Folha p/ Cima, Giro Esquerda)</option>
+          <option value="up-right">Folha p/ Cima, Giro Direita</option>
+          <option value="down-left">Folha p/ Baixo, Giro Esquerda</option>
+          <option value="down-right">Folha p/ Baixo, Giro Direita</option>
+          <option value="left-down">Folha Vertical Esquerda, Giro Baixo</option>
+          <option value="right-down">Folha Vertical Direita, Giro Baixo</option>
         </select>
       </div>
       <div class="form-group">
         <label>Largura do Vão / Folha (px):</label>
-        <input type="number" id="door-modal-size" min="30" max="100" value="50">
+        <input type="number" id="door-modal-size" min="30" max="100" value="55">
       </div>
       <div class="modal-actions">
         <button id="btn-del-door" class="tool-btn btn-del" style="display:none;" onclick="deleteCurrentDoor()">Excluir Porta</button>
@@ -277,7 +323,7 @@
       </div>
     </div>
 
-    <!-- Modal Nova Parede -->
+    <!-- Modal Parede -->
     <div id="wall-modal" class="modal-box">
       <h3>Adicionar Nova Parede / Divisória</h3>
       <div class="form-group">
@@ -365,7 +411,7 @@
       </div>
     </div>
 
-    <!-- Modal Catálogo de Móveis -->
+    <!-- Modal Catálogo de Móveis com Prévia -->
     <div id="furn-modal" class="modal-box">
       <h3>Catálogo de Móveis Técnicos</h3>
       <div class="form-group">
@@ -458,7 +504,7 @@
       </div>
     </div>
 
-    <!-- Modal Adicionar / Editar CFTV ou AP -->
+    <!-- Modal CFTV / AP -->
     <div id="cftv-modal" class="modal-box">
       <h3 id="cftv-modal-title">Adicionar Dispositivo (CFTV / AP)</h3>
       <div class="form-group">
@@ -646,10 +692,10 @@
           <rect x="2485" y="475" width="30" height="20" fill="#cbd5e1" stroke="#475569" stroke-width="1.5"/>
         </g>
 
-        <!-- CAMADA 1.1: PORTAS DINÂMICAS E MÓVEIS -->
+        <!-- CAMADA 1.1: PORTAS DINÂMICAS -->
         <g id="layer-doors-all"></g>
 
-        <!-- CAMADA 1.2: PAREDES INTERNAS DINÂMICAS COM ALÇAS (REDIMENSIONÁVEIS) -->
+        <!-- CAMADA 1.2: PAREDES INTERNAS DINÂMICAS -->
         <g id="layer-walls-dynamic"></g>
 
         <!-- CAMADA 1.5: COLUNAS ESTRUTURAIS E DIVISÓRIAS -->
@@ -667,23 +713,13 @@
         <!-- CAMADA 5: CFTV E AP -->
         <g id="layer-cftv-all"></g>
 
-        <!-- CAMADA 6: LINHA DE FLUXO -->
-        <g id="layer-flow">
-          <path d="M 440 160 L 680 160 L 680 910" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 680 910 L 760 170" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 760 170 L 1180 170" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 1180 170 L 1270 170" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 1270 170 L 1650 170" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 1650 170 L 1740 170" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 1740 170 L 2120 170" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 2120 170 L 2220 190 L 2420 520" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 780 730 L 1680 730" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 1680 730 L 2020 760" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 2020 760 L 2650 850" class="flow-path" marker-end="url(#arrow-flow)"/>
-          <path d="M 2650 850 L 2500 590" class="flow-path" marker-end="url(#arrow-flow)"/>
-        </g>
+        <!-- CAMADA 6: LINHA DE FLUXO AUTOMÁTICA -->
+        <g id="layer-flow"></g>
 
-        <!-- Silhueta Ghost -->
+        <!-- Camada de Destaque da Busca -->
+        <g id="layer-search-target"></g>
+
+        <!-- Silhueta Ghost de Pré-Visualização -->
         <g id="ghost-preview">
           <use id="ghost-use" href="#desk-r"/>
         </g>
@@ -695,19 +731,18 @@
   </div>
 
   <script>
-    // BASE DE DADOS ORIGINAL DE PORTAS (100% DINÂMICAS E MÓVEIS)
+    // BASE DE DADOS ORIGINAL DE PORTAS
     const defaultDoors = [
-      { id: "dr_1", x: 330, y: 480, rot: 0, size: 50 },
-      { id: "dr_2", x: 730, y: 480, rot: 0, size: 50 },
-      { id: "dr_3", x: 1210, y: 480, rot: 0, size: 50 },
-      { id: "dr_4", x: 1690, y: 480, rot: 0, size: 50 },
-      { id: "dr_5", x: 2170, y: 480, rot: 0, size: 50 },
-      { id: "dr_6", x: 330, y: 600, rot: 90, size: 50 },
-      { id: "dr_7", x: 730, y: 600, rot: 90, size: 50 },
-      { id: "dr_8", x: 1930, y: 600, rot: 90, size: 50 }
+      { id: "dr_1", x: 330, y: 480, type: "up-right", size: 55 },
+      { id: "dr_2", x: 730, y: 480, type: "up-right", size: 55 },
+      { id: "dr_3", x: 1210, y: 480, type: "up-right", size: 55 },
+      { id: "dr_4", x: 1690, y: 480, type: "up-right", size: 55 },
+      { id: "dr_5", x: 2170, y: 480, type: "up-right", size: 55 },
+      { id: "dr_6", x: 330, y: 600, type: "down-right", size: 55 },
+      { id: "dr_7", x: 730, y: 600, type: "down-right", size: 55 },
+      { id: "dr_8", x: 1930, y: 600, type: "down-right", size: 55 }
     ];
 
-    // BASE DE DADOS ORIGINAL DE PAREDES INTERNAS
     const defaultWalls = [
       { id: "w_corr_top", x1: 320, y1: 480, x2: 2720, y2: 480 },
       { id: "w_corr_bot", x1: 320, y1: 600, x2: 2720, y2: 600 },
@@ -907,14 +942,16 @@
     let walls = [];
     let doors = [];
     let selectedItemIds = new Set();
+    let clipboard = null;
+    let lastMouseSvg = { x: 1400, y: 550 };
 
-    const STORAGE_KEY_POINTS = 'dpe_pa_cad_points_v9';
-    const STORAGE_KEY_ROOMS = 'dpe_pa_cad_rooms_v9';
-    const STORAGE_KEY_FURN = 'dpe_pa_cad_furn_v9';
-    const STORAGE_KEY_CFTV = 'dpe_pa_cad_cftv_v9';
-    const STORAGE_KEY_PILLARS = 'dpe_pa_cad_pillars_v9';
-    const STORAGE_KEY_WALLS = 'dpe_pa_cad_walls_v9';
-    const STORAGE_KEY_DOORS = 'dpe_pa_cad_doors_v9';
+    const STORAGE_KEY_POINTS = 'dpe_pa_cad_points_v11';
+    const STORAGE_KEY_ROOMS = 'dpe_pa_cad_rooms_v11';
+    const STORAGE_KEY_FURN = 'dpe_pa_cad_furn_v11';
+    const STORAGE_KEY_CFTV = 'dpe_pa_cad_cftv_v11';
+    const STORAGE_KEY_PILLARS = 'dpe_pa_cad_pillars_v11';
+    const STORAGE_KEY_WALLS = 'dpe_pa_cad_walls_v11';
+    const STORAGE_KEY_DOORS = 'dpe_pa_cad_doors_v11';
 
     const undoStack = [];
     const redoStack = [];
@@ -993,16 +1030,28 @@
       document.getElementById('btn-redo').disabled = redoStack.length === 0;
     }
 
+    // COPIAR / COLAR E ATALHOS DE TECLADO
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedItemIds.size > 0) {
           e.preventDefault();
           deleteSelectedItems();
         }
       }
+
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'z' || e.key === 'Z') {
+        if (e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          copySelection();
+        } else if (e.key === 'v' || e.key === 'V') {
+          e.preventDefault();
+          pasteClipboard(lastMouseSvg);
+        } else if (e.key === 'd' || e.key === 'D') {
+          e.preventDefault();
+          duplicateSelectedItems();
+        } else if (e.key === 'z' || e.key === 'Z') {
           if (e.shiftKey) { e.preventDefault(); redo(); }
           else { e.preventDefault(); undo(); }
         } else if (e.key === 'y' || e.key === 'Y') {
@@ -1010,6 +1059,90 @@
         }
       }
     });
+
+    function copySelection() {
+      if (selectedItemIds.size === 0) return;
+      const selPoints = points.filter(p => selectedItemIds.has(p.id));
+      const selFurn = furnitures.filter(f => selectedItemIds.has(f.id));
+      const selCftv = cftvs.filter(c => selectedItemIds.has(c.id));
+      const selPillars = pillars.filter(pil => selectedItemIds.has(pil.id));
+      const selDoors = doors.filter(dr => selectedItemIds.has(dr.id));
+
+      clipboard = {
+        points: JSON.parse(JSON.stringify(selPoints)),
+        furnitures: JSON.parse(JSON.stringify(selFurn)),
+        cftvs: JSON.parse(JSON.stringify(selCftv)),
+        pillars: JSON.parse(JSON.stringify(selPillars)),
+        doors: JSON.parse(JSON.stringify(selDoors))
+      };
+    }
+
+    function pasteClipboard(targetPos) {
+      if (!clipboard) return;
+      pushHistory();
+
+      let sumX = 0, sumY = 0, total = 0;
+      const allItems = [...clipboard.points, ...clipboard.furnitures, ...clipboard.cftvs, ...clipboard.pillars, ...clipboard.doors];
+      if (allItems.length === 0) return;
+
+      allItems.forEach(i => { sumX += i.x; sumY += i.y; total++; });
+      const centerX = sumX / total;
+      const centerY = sumY / total;
+
+      const offX = Math.round(targetPos.x - centerX);
+      const offY = Math.round(targetPos.y - centerY);
+
+      selectedItemIds.clear();
+
+      clipboard.points.forEach(p => {
+        const cloned = JSON.parse(JSON.stringify(p));
+        cloned.id = "p_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+        cloned.x += offX; cloned.y += offY;
+        points.push(cloned);
+        selectedItemIds.add(cloned.id);
+      });
+
+      clipboard.furnitures.forEach(f => {
+        const cloned = JSON.parse(JSON.stringify(f));
+        cloned.id = "f_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+        cloned.x += offX; cloned.y += offY;
+        furnitures.push(cloned);
+        selectedItemIds.add(cloned.id);
+      });
+
+      clipboard.cftvs.forEach(c => {
+        const cloned = JSON.parse(JSON.stringify(c));
+        cloned.id = "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+        cloned.x += offX; cloned.y += offY;
+        cftvs.push(cloned);
+        selectedItemIds.add(cloned.id);
+      });
+
+      clipboard.pillars.forEach(pil => {
+        const cloned = JSON.parse(JSON.stringify(pil));
+        cloned.id = "pil_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+        cloned.x += offX; cloned.y += offY;
+        pillars.push(cloned);
+        selectedItemIds.add(cloned.id);
+      });
+
+      clipboard.doors.forEach(dr => {
+        const cloned = JSON.parse(JSON.stringify(dr));
+        cloned.id = "dr_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+        cloned.x += offX; cloned.y += offY;
+        doors.push(cloned);
+        selectedItemIds.add(cloned.id);
+      });
+
+      saveCurrentState();
+      renderAll();
+    }
+
+    function duplicateSelectedItems() {
+      if (selectedItemIds.size === 0) return;
+      copySelection();
+      pasteClipboard({ x: lastMouseSvg.x + 40, y: lastMouseSvg.y + 40 });
+    }
 
     function loadData() {
       const savedPoints = localStorage.getItem(STORAGE_KEY_POINTS);
@@ -1049,6 +1182,7 @@
       renderFurnitures();
       renderPoints();
       renderCftvs();
+      renderAutoFlow();
       updateSelectionVisuals();
     }
 
@@ -1068,7 +1202,97 @@
       }
     }
 
-    // RENDERIZAR PORTAS (CAMADA 1.1)
+    // MECANISMO DE BUSCA E LOCALIZAÇÃO DE PONTOS
+    const layerSearchTarget = document.getElementById('layer-search-target');
+    let toastTimeout = null;
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast-msg');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.style.display = 'none';
+      }, 3500);
+    }
+
+    function handleSearchKey(e) {
+      if (e.key === 'Enter') {
+        searchAndLocatePoint();
+      }
+    }
+
+    function searchAndLocatePoint() {
+      const query = document.getElementById('input-point-search').value.trim().toUpperCase();
+      layerSearchTarget.innerHTML = '';
+
+      if (!query) {
+        showToast("Digite o código do ponto ou dispositivo para buscar.");
+        return;
+      }
+
+      // 1. Procura na lista de Pontos RJ45
+      let found = points.find(p => 
+        (p.lbl1 && p.lbl1.toUpperCase() === query) || 
+        (p.lbl2 && p.lbl2.toUpperCase() === query)
+      );
+
+      // Se não achou exato, tenta correspondência parcial
+      if (!found) {
+        found = points.find(p => 
+          (p.lbl1 && p.lbl1.toUpperCase().includes(query)) || 
+          (p.lbl2 && p.lbl2.toUpperCase().includes(query))
+        );
+      }
+
+      // 2. Se não achou em Pontos, procura em CFTV e APs
+      let foundType = 'point';
+      if (!found) {
+        found = cftvs.find(c => (c.lbl && c.lbl.toUpperCase() === query) || (c.lbl && c.lbl.toUpperCase().includes(query)));
+        if (found) foundType = 'cftv';
+      }
+
+      if (found) {
+        // Encontrou: Centraliza a tela e dá zoom no ponto
+        scale = 2.8;
+        const rect = svg.getBoundingClientRect();
+        
+        // Converte coordenadas do SVG para o centro da tela
+        const screenMidX = rect.width / 2;
+        const screenMidY = rect.height / 2;
+        
+        // Coordenada do centro do SVG projetada
+        const targetSvgX = found.x * (rect.width / 2800);
+        const targetSvgY = found.y * (rect.height / 1100);
+
+        pointX = screenMidX - (targetSvgX * scale);
+        pointY = screenMidY - (targetSvgY * scale);
+        updateTransform();
+
+        // Cria o anel de destaque pulsante no local
+        const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        halo.setAttribute("cx", found.x);
+        halo.setAttribute("cy", found.y);
+        halo.setAttribute("class", "search-target-halo");
+        layerSearchTarget.appendChild(halo);
+
+        // Seleciona o item encontrado
+        selectedItemIds.clear();
+        selectedItemIds.add(found.id);
+        updateSelectionVisuals();
+
+        // Remove o halo visual após 5 segundos
+        setTimeout(() => {
+          layerSearchTarget.innerHTML = '';
+        }, 5000);
+
+      } else {
+        // Não encontrou na planta
+        showToast(`O ponto "${query}" não está na planta!`);
+      }
+    }
+
+    // RENDERIZAR PORTAS
     const layerDoorsAll = document.getElementById('layer-doors-all');
 
     function renderDoors() {
@@ -1077,31 +1301,56 @@
         const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
         g.setAttribute("class", "door-item" + (selectedItemIds.has(dr.id) ? " selected-item" : ""));
         g.setAttribute("id", dr.id);
-        g.setAttribute("transform", `translate(${dr.x}, ${dr.y}) rotate(${dr.rot || 0})`);
+        g.setAttribute("transform", `translate(${dr.x}, ${dr.y})`);
 
-        const s = dr.size || 50;
+        const s = dr.size || 55;
+        let leafX = 0, leafY = -s;
+        let arcPath = `M 0 -${s} A ${s} ${s} 0 0 1 ${s} 0`;
 
-        // Folha da Porta
+        switch(dr.type) {
+          case 'up-left':
+            leafX = 0; leafY = -s;
+            arcPath = `M 0 -${s} A ${s} ${s} 0 0 0 -${s} 0`;
+            break;
+          case 'up-right':
+            leafX = 0; leafY = -s;
+            arcPath = `M 0 -${s} A ${s} ${s} 0 0 1 ${s} 0`;
+            break;
+          case 'down-left':
+            leafX = 0; leafY = s;
+            arcPath = `M 0 ${s} A ${s} ${s} 0 0 1 -${s} 0`;
+            break;
+          case 'down-right':
+            leafX = 0; leafY = s;
+            arcPath = `M 0 ${s} A ${s} ${s} 0 0 0 ${s} 0`;
+            break;
+          case 'left-down':
+            leafX = -s; leafY = 0;
+            arcPath = `M -${s} 0 A ${s} ${s} 0 0 1 0 ${s}`;
+            break;
+          case 'right-down':
+            leafX = s; leafY = 0;
+            arcPath = `M ${s} 0 A ${s} ${s} 0 0 0 0 ${s}`;
+            break;
+          default:
+            leafX = 0; leafY = -s;
+            arcPath = `M 0 -${s} A ${s} ${s} 0 0 1 ${s} 0`;
+        }
+
         const leaf = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        leaf.setAttribute("x1", 0);
-        leaf.setAttribute("y1", 0);
-        leaf.setAttribute("x2", 0);
-        leaf.setAttribute("y2", -s);
+        leaf.setAttribute("x1", 0); leaf.setAttribute("y1", 0);
+        leaf.setAttribute("x2", leafX); leaf.setAttribute("y2", leafY);
         leaf.setAttribute("class", "door-leaf-line");
         g.appendChild(leaf);
 
-        // Arco de Giro de Abertura
         const swing = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        swing.setAttribute("d", `M 0 -${s} A ${s} ${s} 0 0 1 ${s} 0`);
+        swing.setAttribute("d", arcPath);
         swing.setAttribute("class", "door-swing-arc");
         g.appendChild(swing);
 
-        // Pivô / Batente de fixação
         const pivot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        pivot.setAttribute("cx", 0);
-        pivot.setAttribute("cy", 0);
-        pivot.setAttribute("r", 3.5);
-        pivot.setAttribute("class", "door-pivot");
+        pivot.setAttribute("cx", 0); pivot.setAttribute("cy", 0);
+        pivot.setAttribute("r", 3.5); pivot.setAttribute("class", "door-pivot");
         g.appendChild(pivot);
 
         g.addEventListener('mousedown', (e) => onElementMouseDown(e, dr, 'door'));
@@ -1110,11 +1359,15 @@
         layerDoorsAll.appendChild(g);
       });
       updateAudit();
+      
     }
 
-    // RENDERIZAR PAREDES DINÂMICAS COM ALÇAS (CAMADA 1.2)
-    const layerWallsDynamic = document.getElementById('layer-walls-dynamic');
+    function updateAudit() {
+    // Função de auditoria/atualização
+}
 
+    // RENDERIZAR PAREDES
+    const layerWallsDynamic = document.getElementById('layer-walls-dynamic');
     function renderWalls() {
       layerWallsDynamic.innerHTML = '';
       walls.forEach(w => {
@@ -1123,25 +1376,19 @@
         g.setAttribute("id", w.id);
 
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("x1", w.x1);
-        line.setAttribute("y1", w.y1);
-        line.setAttribute("x2", w.x2);
-        line.setAttribute("y2", w.y2);
+        line.setAttribute("x1", w.x1); line.setAttribute("y1", w.y1);
+        line.setAttribute("x2", w.x2); line.setAttribute("y2", w.y2);
         line.setAttribute("class", "editable-wall-line");
         g.appendChild(line);
 
         const h1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        h1.setAttribute("cx", w.x1);
-        h1.setAttribute("cy", w.y1);
-        h1.setAttribute("r", 7);
-        h1.setAttribute("class", "wall-handle");
+        h1.setAttribute("cx", w.x1); h1.setAttribute("cy", w.y1);
+        h1.setAttribute("r", 7); h1.setAttribute("class", "wall-handle");
         g.appendChild(h1);
 
         const h2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        h2.setAttribute("cx", w.x2);
-        h2.setAttribute("cy", w.y2);
-        h2.setAttribute("r", 7);
-        h2.setAttribute("class", "wall-handle");
+        h2.setAttribute("cx", w.x2); h2.setAttribute("cy", w.y2);
+        h2.setAttribute("r", 7); h2.setAttribute("class", "wall-handle");
         g.appendChild(h2);
 
         line.addEventListener('mousedown', (e) => onElementMouseDown(e, w, 'wall'));
@@ -1192,17 +1439,14 @@
 
         const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         const w = isAp ? 84 : 96;
-        box.setAttribute("x", -w/2);
-        box.setAttribute("y", 15);
-        box.setAttribute("width", w);
-        box.setAttribute("height", 20);
+        box.setAttribute("x", -w/2); box.setAttribute("y", 15);
+        box.setAttribute("width", w); box.setAttribute("height", 20);
         box.setAttribute("class", "tag-box");
         box.setAttribute("style", isAp ? "stroke:#9333ea; fill:#faf5ff;" : "stroke:#dc2626; fill:#fef2f2;");
         g.appendChild(box);
 
         const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        txt.setAttribute("x", 0);
-        txt.setAttribute("y", 25);
+        txt.setAttribute("x", 0); txt.setAttribute("y", 25);
         txt.setAttribute("class", "tag-num");
         txt.setAttribute("style", isAp ? "fill:#6b21a8;" : "fill:#dc2626;");
         txt.textContent = (isAp ? "AP " : "CFTV ") + c.lbl;
@@ -1248,8 +1492,7 @@
         g.setAttribute("transform", `translate(${r.x}, ${r.y})`);
 
         const tName = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        tName.setAttribute("x", 0);
-        tName.setAttribute("y", 0);
+        tName.setAttribute("x", 0); tName.setAttribute("y", 0);
         tName.setAttribute("font-size", r.nameSize || 16);
         tName.setAttribute("font-weight", "800");
         tName.setAttribute("fill", "#0f172a");
@@ -1298,31 +1541,26 @@
         const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         const w = Math.max(76, (isPrefix.length + Math.max(p.lbl1.length, (p.lbl2||'').length)) * 7 + 10);
         const h = hasTwo ? 26 : 18;
-        box.setAttribute("x", -w/2);
-        box.setAttribute("y", -h/2);
-        box.setAttribute("width", w);
-        box.setAttribute("height", h);
+        box.setAttribute("x", -w/2); box.setAttribute("y", -h/2);
+        box.setAttribute("width", w); box.setAttribute("height", h);
         box.setAttribute("class", boxClass);
         g.appendChild(box);
 
         if (hasTwo) {
           const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          t1.setAttribute("x", 0);
-          t1.setAttribute("y", -3.5);
+          t1.setAttribute("x", 0); t1.setAttribute("y", -3.5);
           t1.setAttribute("class", textClass);
           t1.textContent = (p.type === 'start' ? 'INÍCIO: ' : '') + p.lbl1;
           g.appendChild(t1);
 
           const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          t2.setAttribute("x", 0);
-          t2.setAttribute("y", 7.5);
+          t2.setAttribute("x", 0); t2.setAttribute("y", 7.5);
           t2.setAttribute("class", p.type === 'end' ? 'tag-num-end' : 'tag-num');
           t2.textContent = (p.type === 'end' ? 'FIM: ' : '') + p.lbl2;
           g.appendChild(t2);
         } else {
           const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          t1.setAttribute("x", 0);
-          t1.setAttribute("y", 0);
+          t1.setAttribute("x", 0); t1.setAttribute("y", 0);
           t1.setAttribute("class", textClass);
           t1.textContent = isPrefix + p.lbl1;
           g.appendChild(t1);
@@ -1336,19 +1574,7 @@
       updateAudit();
     }
 
-    function updateAudit() {
-      let count = 0;
-      points.forEach(p => {
-        count += (p.lbl2 && p.lbl2.trim().length > 0) ? 2 : 1;
-      });
-      const cftvCount = cftvs.filter(c => c.type === 'cftv').length;
-      document.getElementById('stat-points').textContent = points.length + " caixas";
-      document.getElementById('stat-cables').textContent = (count + cftvCount + 2) + " UTP";
-      document.getElementById('stat-doors').textContent = doors.length + " portas";
-      document.getElementById('stat-walls').textContent = walls.length + " paredes";
-    }
-
-    // MODOS E SISTEMA DE ARRASTE
+    // MODOS E ARRASTE
     let isEditMode = false;
     let isAddPointMode = false;
     let isAddFurnMode = false;
@@ -1367,8 +1593,8 @@
     let pendingPillarRot = 0;
     let pendingWallOrient = 'v';
     let pendingWallLen = 400;
-    let pendingDoorRot = 0;
-    let pendingDoorSize = 50;
+    let pendingDoorType = 'up-right';
+    let pendingDoorSize = 55;
 
     let isSelecting = false;
     let selectStartSvg = { x: 0, y: 0 };
@@ -1409,24 +1635,24 @@
 
     function updateSelectionVisuals() {
       document.querySelectorAll('.point-item, .furn-item, .cftv-item, .pillar-item, .wall-item, .door-item').forEach(el => {
-        if (selectedItemIds.has(el.id)) {
-          el.classList.add('selected-item');
-        } else {
-          el.classList.remove('selected-item');
-        }
+        if (selectedItemIds.has(el.id)) el.classList.add('selected-item');
+        else el.classList.remove('selected-item');
       });
       const btnDelSel = document.getElementById('btn-delete-selected');
+      const btnDupSel = document.getElementById('btn-duplicate');
       if (selectedItemIds.size > 0) {
         btnDelSel.style.display = 'inline-flex';
         btnDelSel.textContent = `Excluir Selecionados (${selectedItemIds.size})`;
+        btnDupSel.style.display = 'inline-flex';
       } else {
         btnDelSel.style.display = 'none';
+        btnDupSel.style.display = 'none';
       }
     }
 
     function deleteSelectedItems() {
       if (selectedItemIds.size === 0) return;
-      if (confirm(`Deseja excluir os ${selectedItemIds.size} itens selecionados (portas/pontos/mesas/paredes)?`)) {
+      if (confirm(`Deseja excluir os ${selectedItemIds.size} itens selecionados?`)) {
         pushHistory();
         points = points.filter(p => !selectedItemIds.has(p.id));
         furnitures = furnitures.filter(f => !selectedItemIds.has(f.id));
@@ -1469,37 +1695,34 @@
       }
     }
 
-    // MODAL E CRIAÇÃO DE PORTAS
+    // MODAL DE PORTAS
     let editingDoor = null;
-
     function openAddDoorModal() {
       editingDoor = null;
       document.getElementById('door-modal-title').textContent = "Adicionar Porta";
-      document.getElementById('door-modal-rot').value = "0";
-      document.getElementById('door-modal-size').value = "50";
+      document.getElementById('door-modal-type').value = "up-right";
+      document.getElementById('door-modal-size').value = "55";
       document.getElementById('btn-del-door').style.display = "none";
       document.getElementById('btn-save-door').textContent = "Posicionar Porta";
       document.getElementById('door-modal').style.display = "block";
     }
-
     function closeDoorModal() {
       document.getElementById('door-modal').style.display = "none";
       editingDoor = null;
     }
-
     function confirmAddDoorPlacement() {
       if (editingDoor) {
         pushHistory();
-        editingDoor.rot = parseInt(document.getElementById('door-modal-rot').value, 10) || 0;
-        editingDoor.size = parseInt(document.getElementById('door-modal-size').value, 10) || 50;
+        editingDoor.type = document.getElementById('door-modal-type').value;
+        editingDoor.size = parseInt(document.getElementById('door-modal-size').value, 10) || 55;
         saveCurrentState();
         renderDoors();
         closeDoorModal();
         return;
       }
 
-      pendingDoorRot = parseInt(document.getElementById('door-modal-rot').value, 10) || 0;
-      pendingDoorSize = parseInt(document.getElementById('door-modal-size').value, 10) || 50;
+      pendingDoorType = document.getElementById('door-modal-type').value;
+      pendingDoorSize = parseInt(document.getElementById('door-modal-size').value, 10) || 55;
       closeDoorModal();
 
       isAddDoorMode = true;
@@ -1509,13 +1732,11 @@
       if (isAddPointMode) toggleAddMode();
       if (isSelectMode) toggleSelectMode();
     }
-
     function cancelAddDoorMode() {
       isAddDoorMode = false;
       document.getElementById('btn-mode-adddoor').classList.remove('active');
       document.getElementById('viewport-container').classList.remove('add-mode');
     }
-
     function onDoorClick(e, dr) {
       if (isSelectMode) {
         e.stopPropagation();
@@ -1528,13 +1749,12 @@
       e.stopPropagation();
       editingDoor = dr;
       document.getElementById('door-modal-title').textContent = "Editar Porta";
-      document.getElementById('door-modal-rot').value = dr.rot || 0;
-      document.getElementById('door-modal-size').value = dr.size || 50;
+      document.getElementById('door-modal-type').value = dr.type || "up-right";
+      document.getElementById('door-modal-size').value = dr.size || 55;
       document.getElementById('btn-del-door').style.display = "inline-flex";
       document.getElementById('btn-save-door').textContent = "Salvar Alterações";
       document.getElementById('door-modal').style.display = "block";
     }
-
     function deleteCurrentDoor() {
       if (!editingDoor) return;
       if (confirm("Deseja excluir esta porta da planta?")) {
@@ -1612,7 +1832,6 @@
       if (isAddDoorMode) cancelAddDoorMode();
       if (isSelectMode) toggleSelectMode();
     }
-
     function cancelAddFurnMode() {
       isAddFurnMode = false;
       pendingFurnType = null;
@@ -1621,7 +1840,7 @@
       document.getElementById('viewport-container').classList.remove('add-mode');
     }
 
-    // ADICIONAR E EDITAR COLUNAS / DIVISÓRIAS
+    // COLUNAS
     let editingPillar = null;
     function openAddPillarModal() {
       editingPillar = null;
@@ -1671,7 +1890,6 @@
       document.getElementById('btn-mode-pillar').classList.remove('active');
       document.getElementById('viewport-container').classList.remove('add-mode');
     }
-
     function onPillarClick(e, pil) {
       if (isSelectMode) {
         e.stopPropagation();
@@ -1690,7 +1908,6 @@
       document.getElementById('btn-save-pillar').textContent = "Salvar Alterações";
       document.getElementById('pillar-modal').style.display = 'block';
     }
-
     function deleteCurrentPillar() {
       if (!editingPillar) return;
       if (confirm("Deseja excluir esta coluna ou divisória da planta?")) {
@@ -1839,8 +2056,7 @@
       const pt = getSvgCoords(e);
 
       if (type === 'wall') {
-        dragStartX = pt.x;
-        dragStartY = pt.y;
+        dragStartX = pt.x; dragStartY = pt.y;
         wallOriginal = { x1: item.x1, y1: item.y1, x2: item.x2, y2: item.y2 };
       } else {
         dragStartX = pt.x - item.x;
@@ -1891,6 +2107,7 @@
       editingPoint.rot = document.getElementById('modal-rot').value;
       saveCurrentState();
       renderPoints();
+      renderAutoFlow();
       closeEditModal();
     }
     function deleteCurrentPoint() {
@@ -1900,6 +2117,7 @@
         points = points.filter(p => p.id !== editingPoint.id);
         saveCurrentState();
         renderPoints();
+        renderAutoFlow();
         closeEditModal();
       }
     }
@@ -1929,7 +2147,7 @@
       closeRoomModal();
     }
 
-    // MOTOR PAN, ZOOM & ENGINE DE MANIPULAÇÃO
+    // MOTOR PAN, ZOOM & ENGINE MATRICIAL DE PRECISÃO ABSOLUTA
     const svg = document.getElementById('svg-cad');
     const content = document.getElementById('canvas-content');
     const container = document.getElementById('viewport-container');
@@ -1941,23 +2159,26 @@
       content.setAttribute('transform', `translate(${pointX}, ${pointY}) scale(${scale})`);
     }
 
+    // CÁLCULO VETORIAL PRECISO (MATRIZ INVERSA DO NAVEGADOR)
     function getSvgCoords(e) {
-      const rect = svg.getBoundingClientRect();
-      const clientX = e.clientX - rect.left;
-      const clientY = e.clientY - rect.top;
-      return {
-        x: (clientX - pointX) / scale * (2800 / rect.width),
-        y: (clientY - pointY) / scale * (1100 / rect.height)
-      };
+      const ctm = content.getScreenCTM();
+      if (!ctm) return { x: 0, y: 0 };
+      const inverse = ctm.inverse();
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const svgPt = pt.matrixTransform(inverse);
+      return { x: svgPt.x, y: svgPt.y };
     }
 
     container.addEventListener('mousedown', (e) => {
       if (e.target.closest('#cad-header') || e.target.closest('#layer-manager') || e.target.closest('#audit-box') || e.target.closest('.modal-box')) return;
 
+      const pt = getSvgCoords(e);
+
       // SELEÇÃO BOX
       if (isSelectMode) {
         isSelecting = true;
-        const pt = getSvgCoords(e);
         selectStartSvg = pt;
         selectionRect.setAttribute('x', pt.x);
         selectionRect.setAttribute('y', pt.y);
@@ -1970,13 +2191,12 @@
       // INSERIR PORTA
       if (isAddDoorMode) {
         pushHistory();
-        const pt = getSvgCoords(e);
         const newDr = {
           id: "dr_" + Date.now(),
           x: Math.round(pt.x),
           y: Math.round(pt.y),
-          rot: pendingDoorRot || 0,
-          size: pendingDoorSize || 50
+          type: pendingDoorType,
+          size: pendingDoorSize || 55
         };
         doors.push(newDr);
         saveCurrentState();
@@ -1988,7 +2208,6 @@
       // INSERIR PAREDE
       if (isAddWallMode) {
         pushHistory();
-        const pt = getSvgCoords(e);
         const isV = pendingWallOrient === 'v';
         const newW = {
           id: "w_" + Date.now(),
@@ -2007,7 +2226,6 @@
       // INSERIR PONTO
       if (isAddPointMode) {
         pushHistory();
-        const pt = getSvgCoords(e);
         const newP = {
           id: "p_" + Date.now(),
           x: Math.round(pt.x),
@@ -2020,6 +2238,7 @@
         points.push(newP);
         saveCurrentState();
         renderPoints();
+        renderAutoFlow();
         openEditModal(newP);
         toggleAddMode();
         return;
@@ -2028,7 +2247,6 @@
       // INSERIR MÓVEL
       if (isAddFurnMode && pendingFurnType) {
         pushHistory();
-        const pt = getSvgCoords(e);
         const newF = {
           id: "furn_" + Date.now(),
           type: pendingFurnType,
@@ -2046,7 +2264,6 @@
       // INSERIR COLUNA
       if (isAddPillarMode && pendingPillarType) {
         pushHistory();
-        const pt = getSvgCoords(e);
         const newPil = {
           id: "pil_" + Date.now(),
           type: pendingPillarType,
@@ -2064,7 +2281,6 @@
       // INSERIR CFTV OU AP
       if (isAddCftvMode) {
         pushHistory();
-        const pt = getSvgCoords(e);
         const newC = {
           id: "c_" + Date.now(),
           type: pendingCftvType,
@@ -2090,6 +2306,7 @@
 
     window.addEventListener('mousemove', (e) => {
       const pt = getSvgCoords(e);
+      lastMouseSvg = pt;
 
       // Ghost preview
       if ((isAddFurnMode || isAddCftvMode || isAddPillarMode) && ghostPreview.style.display !== 'none') {
@@ -2097,7 +2314,7 @@
         ghostPreview.setAttribute('transform', `translate(${pt.x}, ${pt.y}) rotate(${rot})`);
       }
 
-      // Redimensionamento de Paredes por Alça (Grips)
+      // Redimensionamento de Paredes
       if (activeWall && activeHandle && isEditMode) {
         hasMoved = true;
         if (activeHandle === 'p1') {
@@ -2124,7 +2341,7 @@
         return;
       }
 
-      // Arraste Integral de Objetos
+      // Arraste Integral
       if (draggedItem && isEditMode) {
         if (!hasMoved) {
           pushHistory();
@@ -2144,10 +2361,13 @@
           draggedItem.y = Math.round(pt.y - dragStartY);
           const el = document.getElementById(draggedItem.id);
           if (el) {
-            if (draggedType === 'furn' || draggedType === 'pillar' || draggedType === 'door') {
+            if (draggedType === 'furn' || draggedType === 'pillar') {
               el.setAttribute("transform", `translate(${draggedItem.x}, ${draggedItem.y}) rotate(${draggedItem.rot || 0})`);
+            } else if (draggedType === 'door') {
+              el.setAttribute("transform", `translate(${draggedItem.x}, ${draggedItem.y})`);
             } else {
               el.setAttribute("transform", `translate(${draggedItem.x}, ${draggedItem.y})`);
+              if (draggedType === 'point') renderAutoFlow();
             }
           }
         }
@@ -2207,6 +2427,7 @@
       }
 
       if (draggedItem) {
+        if (draggedType === 'point') renderAutoFlow();
         draggedItem = null;
         draggedType = null;
         saveCurrentState();
@@ -2218,9 +2439,8 @@
     container.addEventListener('wheel', (e) => {
       if (e.target.closest('#layer-manager') || e.target.closest('#audit-box') || e.target.closest('.modal-box')) return;
       e.preventDefault();
-      const rect = svg.getBoundingClientRect();
-      const clientX = e.clientX - rect.left;
-      const clientY = e.clientY - rect.top;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
 
       const xs = (clientX - pointX) / scale;
       const ys = (clientY - pointY) / scale;
@@ -2242,7 +2462,7 @@
       if (el) el.style.display = visible ? 'inline' : 'none';
     }
 
-    // EXPORTAR E IMPORTAR JSON COMPLETO (PORTAS + PAREDES + PONTOS + SALAS + MÓVEIS + CFTV + PILARES)
+    // EXPORTAR E IMPORTAR JSON COMPLETO
     function exportJSON() {
       const fullData = { points, rooms, furnitures, cftvs, pillars, walls, doors };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
@@ -2282,6 +2502,70 @@
         } catch(err) { alert("Arquivo JSON inválido."); }
       };
       reader.readAsText(file);
+    }
+
+    // ARRASTE DO PAINEL DE CAMADAS
+    const layerManager = document.getElementById('layer-manager');
+    const layerDragHeader = document.getElementById('layer-header-drag');
+    let isDraggingPanel = false;
+    let panelStartX = 0, panelStartY = 0;
+
+    layerDragHeader.addEventListener('mousedown', (e) => {
+      isDraggingPanel = true;
+      panelStartX = e.clientX - layerManager.offsetLeft;
+      panelStartY = e.clientY - layerManager.offsetTop;
+      e.stopPropagation();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDraggingPanel) return;
+      const left = e.clientX - panelStartX;
+      const top = e.clientY - panelStartY;
+      layerManager.style.left = Math.max(10, Math.min(window.innerWidth - 260, left)) + 'px';
+      layerManager.style.top = Math.max(60, Math.min(window.innerHeight - 300, top)) + 'px';
+      layerManager.style.right = 'auto';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDraggingPanel = false;
+    });
+
+    // CÁLCULO E RENDERIZAÇÃO AUTOMÁTICA DA LINHA DE FLUXO (MENOR AO MAIOR PONTO)
+    const layerFlow = document.getElementById('layer-flow');
+
+    function renderAutoFlow() {
+      layerFlow.innerHTML = '';
+      if (points.length === 0) return;
+
+      const sorted = [...points].sort((a, b) => {
+        const valA = (a.lbl1 || '').toUpperCase();
+        const valB = (b.lbl1 || '').toUpperCase();
+        return valA.localeCompare(valB, undefined, { numeric: true });
+      });
+
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const p1 = sorted[i];
+        const p2 = sorted[i + 1];
+
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", p1.x);
+        line.setAttribute("y1", p1.y);
+        line.setAttribute("x2", p2.x);
+        line.setAttribute("y2", p2.y);
+        line.setAttribute("class", "flow-path");
+        line.setAttribute("marker-end", "url(#arrow-flow)");
+        layerFlow.appendChild(line);
+      }
+
+      const lastPoint = sorted[sorted.length - 1];
+      const lineToRack = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      lineToRack.setAttribute("x1", lastPoint.x);
+      lineToRack.setAttribute("y1", lastPoint.y);
+      lineToRack.setAttribute("x2", 2500);
+      lineToRack.setAttribute("y2", 495);
+      lineToRack.setAttribute("class", "flow-path");
+      lineToRack.setAttribute("marker-end", "url(#arrow-flow)");
+      layerFlow.appendChild(lineToRack);
     }
 
     loadData();
