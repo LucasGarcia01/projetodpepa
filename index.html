@@ -1,0 +1,2290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPE-PA | DITEC - Editor CAD Total (Portas + Paredes + Colunas + Móveis + Pontos)</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --panel-bg: rgba(15, 23, 42, 0.95);
+      --panel-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --brand-blue: #0284c7;
+      --brand-cyan: #38bdf8;
+      --wall-stroke: #0f172a;
+      --wall-fill: #334155;
+      --furniture-stroke: #1e293b;
+      --furniture-fill: #f8fafc;
+      --chair-fill: #e2e8f0;
+      --pillar-fill: #475569;
+      --door-leaf-stroke: #0f172a;
+      --door-swing-stroke: #0284c7;
+      --flow-color: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: #cbd5e1; color: var(--text-main); }
+    #viewport-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; cursor: grab; }
+    #viewport-container.panning { cursor: grabbing; }
+    #viewport-container.add-mode { cursor: crosshair !important; }
+    #viewport-container.select-mode { cursor: default !important; }
+
+    #cad-header {
+      position: absolute; top: 0; left: 0; right: 0; height: 56px;
+      background: var(--panel-bg); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--panel-border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; z-index: 100; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .dpe-badge { background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px; }
+    .titles h1 { font-size: 13.5px; font-weight: 700; color: var(--brand-cyan); }
+    .titles p { font-size: 10.5px; color: var(--text-muted); }
+    .header-btns { display: flex; gap: 5px; align-items: center; }
+
+    .tool-btn {
+      background: #1e293b; color: var(--text-main); border: 1px solid var(--panel-border);
+      padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease;
+    }
+    .tool-btn:hover { background: var(--brand-blue); border-color: var(--brand-cyan); color: #fff; }
+    .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .tool-btn.active { background: #16a34a !important; border-color: #4ade80 !important; color: #fff; }
+    .tool-btn.select-active { background: #9333ea !important; border-color: #c084fc !important; color: #fff; }
+    .tool-btn.danger { background: #dc2626 !important; border-color: #ef4444 !important; color: #fff; }
+
+    #layer-manager {
+      position: absolute; top: 66px; right: 18px; background: var(--panel-bg);
+      border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px 16px;
+      width: 250px; z-index: 99; box-shadow: 0 8px 24px rgba(0,0,0,0.4); backdrop-filter: blur(10px);
+    }
+    .panel-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--panel-border); }
+    .layer-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; font-size: 11.5px; }
+    .layer-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+    .modal-box {
+      display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: var(--panel-bg); border: 1px solid var(--brand-cyan); border-radius: 8px;
+      padding: 16px; width: 350px; z-index: 200; box-shadow: 0 10px 35px rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+    }
+    .modal-box h3 { font-size: 13px; color: var(--brand-cyan); margin-bottom: 12px; }
+    .form-group { margin-bottom: 10px; }
+    .form-group label { display: block; font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px; }
+    .form-group input, .form-group select {
+      width: 100%; background: #0f172a; border: 1px solid var(--panel-border);
+      color: #fff; padding: 6px 8px; border-radius: 4px; font-size: 11.5px; outline: none;
+    }
+    .modal-actions { display: flex; justify-content: space-between; margin-top: 14px; }
+    .btn-del { background: #dc2626 !important; border-color: #ef4444 !important; }
+
+    #furn-preview-container {
+      width: 100%; height: 140px; background: #ffffff; border: 1px solid var(--panel-border);
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px; overflow: hidden;
+    }
+    #furn-preview-svg { width: 100%; height: 100%; }
+
+    #audit-box {
+      position: absolute; bottom: 18px; left: 18px; background: var(--panel-bg);
+      border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px 16px;
+      z-index: 99; backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); font-size: 11px;
+    }
+    .audit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 5px; }
+    .audit-stat span:first-child { color: var(--text-muted); font-size: 9.5px; text-transform: uppercase; }
+    .audit-stat span:last-child { font-size: 13px; font-weight: 700; color: var(--brand-cyan); }
+
+    svg { width: 100%; height: 100%; display: block; background-color: #ffffff; }
+    .wall-solid { stroke: var(--wall-stroke); stroke-width: 6; fill: none; stroke-linecap: square; }
+    .table-top { fill: var(--furniture-fill); stroke: var(--furniture-stroke); stroke-width: 1.4; }
+    .chair-seat { fill: var(--chair-fill); stroke: #0f172a; stroke-width: 1.4; rx: 3px; }
+    .chair-back { stroke: #0f172a; stroke-width: 1.8; fill: none; stroke-linecap: round; }
+
+    /* Estilo de Portas Dinâmicas */
+    .door-item { cursor: move; }
+    .door-leaf-line { stroke: var(--door-leaf-stroke); stroke-width: 3; stroke-linecap: square; }
+    .door-swing-arc { stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; }
+    .door-pivot { fill: #0284c7; stroke: #0f172a; stroke-width: 1.5; }
+    .door-item:hover .door-leaf-line { stroke: var(--brand-cyan); stroke-width: 4; }
+    .door-item:hover .door-swing-arc { stroke: var(--brand-cyan); stroke-width: 2; }
+
+    /* Paredes Editáveis */
+    .editable-wall-line { stroke: var(--wall-stroke); stroke-width: 6; stroke-linecap: square; cursor: move; }
+    .editable-wall-line:hover { stroke: var(--brand-cyan); }
+    .wall-handle { fill: var(--brand-cyan); stroke: #0f172a; stroke-width: 1.5; cursor: grab; }
+    .wall-handle:hover { fill: #f59e0b; }
+
+    /* Colunas e Divisórias */
+    .pillar-body { fill: #475569; stroke: #0f172a; stroke-width: 2; }
+    .pillar-hatch { stroke: #94a3b8; stroke-width: 1.2; }
+    .partition-wall { stroke: #334155; stroke-width: 4; stroke-linecap: round; }
+
+    /* Itens Editáveis */
+    .point-item, .room-text-item, .furn-item, .cftv-item, .pillar-item, .wall-item, .door-item { cursor: pointer; }
+    .point-item:hover .tag-box { stroke: var(--brand-cyan) !important; stroke-width: 2 !important; }
+    .room-text-item:hover text { fill: var(--brand-blue) !important; }
+    .furn-item:hover .table-top { stroke: var(--brand-cyan) !important; stroke-width: 2 !important; }
+    .cftv-item:hover circle { stroke: var(--brand-cyan) !important; stroke-width: 3 !important; }
+    .pillar-item:hover .pillar-body { stroke: var(--brand-cyan) !important; stroke-width: 3 !important; }
+
+    /* Seleção */
+    .selected-item .tag-box, .selected-item .table-top { stroke: #0284c7 !important; stroke-width: 2.5 !important; fill: #e0f2fe !important; }
+    .selected-item circle { stroke: #0284c7 !important; stroke-width: 3.5 !important; }
+    .selected-item .pillar-body { stroke: #0284c7 !important; stroke-width: 3.5 !important; fill: #0284c7 !important; }
+    .selected-item.wall-item line { stroke: #0284c7 !important; stroke-width: 8 !important; }
+    .selected-item.door-item .door-leaf-line { stroke: #0284c7 !important; stroke-width: 5 !important; }
+
+    .tag-box { fill: #ffffff; stroke: #15803d; stroke-width: 1.2; rx: 2px; }
+    .tag-box-start { fill: #f0fdf4; stroke: #16a34a; stroke-width: 1.6; rx: 2px; }
+    .tag-box-end { fill: #fef2f2; stroke: #dc2626; stroke-width: 1.6; rx: 2px; }
+    .tag-num { font-size: 8.5px; font-family: "Consolas", monospace; font-weight: 800; fill: #166534; text-anchor: middle; dominant-baseline: central; }
+    .tag-num-start { font-size: 8.5px; font-family: "Consolas", monospace; font-weight: 900; fill: #15803d; text-anchor: middle; dominant-baseline: central; }
+    .tag-num-end { font-size: 8.5px; font-family: "Consolas", monospace; font-weight: 900; fill: #b91c1c; text-anchor: middle; dominant-baseline: central; }
+
+    .flow-path { stroke: var(--flow-color); stroke-width: 2.2; stroke-dasharray: 7 4; fill: none; opacity: 0.9; }
+
+    #selection-rect {
+      fill: rgba(2, 132, 199, 0.15); stroke: #0284c7; stroke-width: 1.5; stroke-dasharray: 4 3; display: none; pointer-events: none;
+    }
+    #ghost-preview { opacity: 0.5; pointer-events: none; display: none; }
+
+    @media print {
+      @page { size: A3 landscape; margin: 4mm; }
+      #cad-header, #layer-manager, #audit-box, .modal-box, .wall-handle, .door-pivot { display: none !important; }
+      body, html, #viewport-container, svg { width: 100% !important; height: 100% !important; overflow: visible !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="viewport-container">
+    <header id="cad-header">
+      <div class="header-left">
+        <span class="dpe-badge">DPE-PA</span>
+        <div class="titles">
+          <h1>Editor CAD 2º Pavimento (Rede Estruturada)</h1>
+          <p>DITEC / GPA - Controle Total de Portas, Paredes, Salas, Móveis e Pontos</p>
+        </div>
+      </div>
+      <div class="header-btns">
+        <button id="btn-undo" class="tool-btn" onclick="undo()" title="Desfazer (Ctrl+Z)" disabled>↩ Desfazer</button>
+        <button id="btn-redo" class="tool-btn" onclick="redo()" title="Refazer (Ctrl+Y)" disabled>↪ Refazer</button>
+        <button id="btn-mode-select" class="tool-btn" onclick="toggleSelectMode()">Modo Seleção (Box)</button>
+        <button id="btn-delete-selected" class="tool-btn danger" style="display:none;" onclick="deleteSelectedItems()">Excluir Selecionados</button>
+        <button id="btn-mode-edit" class="tool-btn" onclick="toggleEditMode()">Modo Mover/Editar</button>
+        <button id="btn-mode-adddoor" class="tool-btn" onclick="openAddDoorModal()">+ Adicionar Porta</button>
+        <button id="btn-mode-addwall" class="tool-btn" onclick="openAddWallModal()">+ Adicionar Parede</button>
+        <button id="btn-mode-add" class="tool-btn" onclick="toggleAddMode()">+ Adicionar Ponto</button>
+        <button id="btn-mode-furn" class="tool-btn" onclick="openAddFurnCatalog()">+ Adicionar Móvel</button>
+        <button id="btn-mode-pillar" class="tool-btn" onclick="openAddPillarModal()">+ Adicionar Coluna</button>
+        <button id="btn-mode-cftv" class="tool-btn" onclick="openAddCftvModal()">+ Adicionar CFTV/AP</button>
+        <button class="tool-btn" onclick="exportJSON()">Salvar JSON</button>
+        <button class="tool-btn" onclick="triggerImport()">Carregar JSON</button>
+        <button class="tool-btn" onclick="resetToDefault()">Restaurar Original</button>
+        <button class="tool-btn" onclick="resetView()">Enquadrar</button>
+        <button class="tool-btn" onclick="window.print()" style="background: var(--brand-blue);">Imprimir / PDF</button>
+      </div>
+    </header>
+
+    <input type="file" id="file-import" accept=".json" style="display:none;" onchange="importJSON(event)">
+
+    <aside id="layer-manager">
+      <div class="panel-title">Camadas CAD</div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-walls-outer', this.checked)">
+        <span class="swatch" style="background: #0f172a;"></span>Perímetro e Escada</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-doors-all', this.checked)">
+        <span class="swatch" style="background: #0284c7;"></span>Portas (Folhas & Giros)</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-walls-dynamic', this.checked)">
+        <span class="swatch" style="background: #1e293b;"></span>Paredes das Salas (Móveis)</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-pillars-all', this.checked)">
+        <span class="swatch" style="background: #475569;"></span>Colunas & Divisórias</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-furniture-all', this.checked)">
+        <span class="swatch" style="background: #64748b;"></span>Mobiliário Técnico</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-rooms', this.checked)">
+        <span class="swatch" style="background: #334155;"></span>Identificação de Salas</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-points', this.checked)">
+        <span class="swatch" style="background: #16a34a;"></span>Pontos RJ45</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-cftv-all', this.checked)">
+        <span class="swatch" style="background: #ef4444;"></span>CFTV IP & AP Wi-Fi</label>
+      </div>
+      <div class="layer-row">
+        <label><input type="checkbox" checked onchange="toggleLayer('layer-flow', this.checked)">
+        <span class="swatch" style="background: #f59e0b;"></span>Linha de Fluxo</label>
+      </div>
+    </aside>
+
+    <div id="audit-box">
+      <div class="panel-title" style="margin-bottom: 2px; border: none; padding: 0;">Auditoria Dinâmica</div>
+      <div class="audit-grid">
+        <div class="audit-stat">
+          <span>Total Pontos</span>
+          <span id="stat-points">0</span>
+        </div>
+        <div class="audit-stat">
+          <span>Cabos Est.</span>
+          <span id="stat-cables">0 UTP</span>
+        </div>
+        <div class="audit-stat">
+          <span>Portas CAD</span>
+          <span id="stat-doors">0</span>
+        </div>
+        <div class="audit-stat">
+          <span>Paredes Div.</span>
+          <span id="stat-walls">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Porta (Novo) -->
+    <div id="door-modal" class="modal-box">
+      <h3 id="door-modal-title">Configurar Porta</h3>
+      <div class="form-group">
+        <label>Orientação / Sentido de Giro:</label>
+        <select id="door-modal-rot">
+          <option value="0">0° (Abre Cima/Direita)</option>
+          <option value="90">90° (Abre Baixo/Direita)</option>
+          <option value="180">180° (Abre Baixo/Esquerda)</option>
+          <option value="270">270° (Abre Cima/Esquerda)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Largura do Vão / Folha (px):</label>
+        <input type="number" id="door-modal-size" min="30" max="100" value="50">
+      </div>
+      <div class="modal-actions">
+        <button id="btn-del-door" class="tool-btn btn-del" style="display:none;" onclick="deleteCurrentDoor()">Excluir Porta</button>
+        <div>
+          <button class="tool-btn" onclick="closeDoorModal()">Cancelar</button>
+          <button id="btn-save-door" class="tool-btn" onclick="confirmAddDoorPlacement()" style="background:var(--brand-blue);">Posicionar Porta</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Nova Parede -->
+    <div id="wall-modal" class="modal-box">
+      <h3>Adicionar Nova Parede / Divisória</h3>
+      <div class="form-group">
+        <label>Orientação da Parede:</label>
+        <select id="wall-modal-orient">
+          <option value="v">Vertical (Divisão entre Salas)</option>
+          <option value="h">Horizontal (Corredor / Sala)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Comprimento da Parede (px):</label>
+        <input type="number" id="wall-modal-len" min="100" max="2400" value="400">
+      </div>
+      <div class="modal-actions">
+        <span></span>
+        <div>
+          <button class="tool-btn" onclick="closeWallModal()">Cancelar</button>
+          <button class="tool-btn" onclick="confirmAddWallPlacement()" style="background:var(--brand-blue);">Posicionar Parede</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Ponto -->
+    <div id="edit-modal" class="modal-box">
+      <h3 id="modal-title">Editar Ponto</h3>
+      <div class="form-group">
+        <label>Linha Superior / Etiqueta 1:</label>
+        <input type="text" id="modal-lbl1" placeholder="Ex: 02A0401">
+      </div>
+      <div class="form-group">
+        <label>Linha Inferior / Etiqueta 2:</label>
+        <input type="text" id="modal-lbl2" placeholder="Ex: 02A0402 (opcional)">
+      </div>
+      <div class="form-group">
+        <label>Tipo de Destaque:</label>
+        <select id="modal-type">
+          <option value="mid">Normal (Azul/Verde)</option>
+          <option value="start">Início de Sala (Verde)</option>
+          <option value="end">Fim de Sala (Vermelho)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Orientação do Conector:</label>
+        <select id="modal-rot">
+          <option value="r">Direita (0°)</option>
+          <option value="l">Esquerda (180°)</option>
+          <option value="u">Cima (270°)</option>
+          <option value="d">Baixo (90°)</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="tool-btn btn-del" onclick="deleteCurrentPoint()">Excluir</button>
+        <div>
+          <button class="tool-btn" onclick="closeEditModal()">Cancelar</button>
+          <button class="tool-btn" onclick="savePointModal()" style="background:var(--brand-blue);">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Sala -->
+    <div id="room-modal" class="modal-box">
+      <h3>Editar Ambiente / Sala</h3>
+      <div class="form-group">
+        <label>Nome Principal:</label>
+        <input type="text" id="room-modal-name" placeholder="Ex: SALA 04">
+      </div>
+      <div class="form-group">
+        <label>Tamanho da Fonte do Nome (px):</label>
+        <input type="number" id="room-modal-namesize" min="10" max="30" value="16">
+      </div>
+      <div class="form-group">
+        <label>Descrição / Subtítulo:</label>
+        <input type="text" id="room-modal-desc" placeholder="Ex: COORDENAÇÃO OPERACIONAL">
+      </div>
+      <div class="form-group">
+        <label>Tamanho da Fonte da Descrição (px):</label>
+        <input type="number" id="room-modal-descsize" min="8" max="20" value="10">
+      </div>
+      <div class="modal-actions">
+        <span></span>
+        <div>
+          <button class="tool-btn" onclick="closeRoomModal()">Cancelar</button>
+          <button class="tool-btn" onclick="saveRoomModal()" style="background:var(--brand-blue);">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Catálogo de Móveis -->
+    <div id="furn-modal" class="modal-box">
+      <h3>Catálogo de Móveis Técnicos</h3>
+      <div class="form-group">
+        <label>Prévia do Móvel:</label>
+        <div id="furn-preview-container">
+          <svg id="furn-preview-svg" viewBox="-130 -100 260 200">
+            <g id="preview-target"></g>
+          </svg>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Modelo do Móvel:</label>
+        <select id="furn-modal-type" onchange="updateFurnPreview()">
+          <option value="desk-r">Mesa Individual (Voltada p/ Direita)</option>
+          <option value="desk-l">Mesa Individual (Voltada p/ Esquerda)</option>
+          <option value="desk-dual">Baia Dupla (2 Postos Frente a Frente)</option>
+          <option value="quad-island">Ilha Quádrupla de Baias (4 Postos)</option>
+          <option value="desk-l-shape-l">Mesa em "L" de Gabinete (Canto Esquerdo)</option>
+          <option value="desk-l-shape-r">Mesa em "L" de Gabinete (Canto Direito)</option>
+          <option value="meeting-round">Mesa de Reunião Redonda (8 Cadeiras)</option>
+          <option value="bench-rect">Bancada Linear de Apoio / Reunião</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Rotação Inicial:</label>
+        <select id="furn-modal-rot" onchange="updateFurnPreview()">
+          <option value="0">0° (Padrão)</option>
+          <option value="90">90°</option>
+          <option value="180">180°</option>
+          <option value="270">270°</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <span></span>
+        <div>
+          <button class="tool-btn" onclick="closeFurnModal()">Cancelar</button>
+          <button class="tool-btn" onclick="confirmAddFurnPlacement()" style="background:var(--brand-blue);">Selecionar Posição</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Editar Móvel Existente -->
+    <div id="edit-furn-modal" class="modal-box">
+      <h3>Editar Móvel Selecionado</h3>
+      <div class="form-group">
+        <label>Rotação do Móvel:</label>
+        <select id="edit-furn-rot">
+          <option value="0">0°</option>
+          <option value="90">90°</option>
+          <option value="180">180°</option>
+          <option value="270">270°</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="tool-btn btn-del" onclick="deleteCurrentFurn()">Excluir Móvel</button>
+        <div>
+          <button class="tool-btn" onclick="closeEditFurnModal()">Cancelar</button>
+          <button class="tool-btn" onclick="saveEditFurnModal()" style="background:var(--brand-blue);">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Adicionar / Editar Coluna -->
+    <div id="pillar-modal" class="modal-box">
+      <h3 id="pillar-modal-title">Adicionar Coluna / Elemento</h3>
+      <div class="form-group">
+        <label>Tipo de Elemento:</label>
+        <select id="pillar-modal-type">
+          <option value="pillar-sq">Coluna Quadrada (30 x 30 cm)</option>
+          <option value="pillar-rect">Coluna Retangular (30 x 60 cm)</option>
+          <option value="part-wall-h">Mureta Divisória Horizontal (120 cm)</option>
+          <option value="part-wall-v">Mureta Divisória Vertical (120 cm)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Rotação:</label>
+        <select id="pillar-modal-rot">
+          <option value="0">0° (Padrão)</option>
+          <option value="90">90°</option>
+          <option value="180">180°</option>
+          <option value="270">270°</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-del-pillar" class="tool-btn btn-del" style="display:none;" onclick="deleteCurrentPillar()">Excluir</button>
+        <div>
+          <button class="tool-btn" onclick="closePillarModal()">Cancelar</button>
+          <button id="btn-save-pillar" class="tool-btn" onclick="confirmAddPillarPlacement()" style="background:var(--brand-blue);">Posicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Adicionar / Editar CFTV ou AP -->
+    <div id="cftv-modal" class="modal-box">
+      <h3 id="cftv-modal-title">Adicionar Dispositivo (CFTV / AP)</h3>
+      <div class="form-group">
+        <label>Tipo de Dispositivo:</label>
+        <select id="cftv-modal-type">
+          <option value="cftv">Câmara CFTV IP</option>
+          <option value="ap">Access Point Wi-Fi (Teto)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Identificação / Código:</label>
+        <input type="text" id="cftv-modal-lbl" placeholder="Ex: 02A0721">
+      </div>
+      <div class="form-group">
+        <label>Rotação do Símbolo:</label>
+        <select id="cftv-modal-rot">
+          <option value="0">0° (Direita)</option>
+          <option value="90">90° (Baixo)</option>
+          <option value="180">180° (Esquerda)</option>
+          <option value="270">270° (Cima)</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-del-cftv" class="tool-btn btn-del" style="display:none;" onclick="deleteCurrentCftv()">Excluir</button>
+        <div>
+          <button class="tool-btn" onclick="closeCftvModal()">Cancelar</button>
+          <button id="btn-save-cftv" class="tool-btn" onclick="confirmAddCftvPlacement()" style="background:var(--brand-blue);">Posicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SVG Canvas Principal -->
+    <svg id="svg-cad" viewBox="0 0 2800 1100" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="arrow-flow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#f59e0b"/>
+        </marker>
+
+        <!-- Conectores RJ45 -->
+        <g id="rj45-r">
+          <rect x="-2.5" y="-2.5" width="5" height="5" fill="#fff" stroke="#0284c7" stroke-width="1.2"/>
+          <line x1="0" y1="0" x2="14" y2="0" stroke="#0284c7" stroke-width="1.8"/>
+          <line x1="14" y1="-8" x2="14" y2="8" stroke="#0284c7" stroke-width="1.8"/>
+          <polygon points="14,-7 24,0 14,7" fill="none" stroke="#0284c7" stroke-width="1.6"/>
+        </g>
+        <g id="rj45-l">
+          <rect x="-2.5" y="-2.5" width="5" height="5" fill="#fff" stroke="#0284c7" stroke-width="1.2"/>
+          <line x1="0" y1="0" x2="-14" y2="0" stroke="#0284c7" stroke-width="1.8"/>
+          <line x1="-14" y1="-8" x2="-14" y2="8" stroke="#0284c7" stroke-width="1.8"/>
+          <polygon points="-14,-7 -24,0 -14,7" fill="none" stroke="#0284c7" stroke-width="1.6"/>
+        </g>
+        <g id="rj45-u">
+          <rect x="-2.5" y="-2.5" width="5" height="5" fill="#fff" stroke="#0284c7" stroke-width="1.2"/>
+          <line x1="0" y1="0" x2="0" y2="-14" stroke="#0284c7" stroke-width="1.8"/>
+          <line x1="-8" y1="-14" x2="8" y2="-14" stroke="#0284c7" stroke-width="1.8"/>
+          <polygon points="-7,-14 0,-24 7,-14" fill="none" stroke="#0284c7" stroke-width="1.6"/>
+        </g>
+        <g id="rj45-d">
+          <rect x="-2.5" y="-2.5" width="5" height="5" fill="#fff" stroke="#0284c7" stroke-width="1.2"/>
+          <line x1="0" y1="0" x2="0" y2="14" stroke="#0284c7" stroke-width="1.8"/>
+          <line x1="-8" y1="14" x2="8" y2="14" stroke="#0284c7" stroke-width="1.8"/>
+          <polygon points="-7,14 0,24 7,14" fill="none" stroke="#0284c7" stroke-width="1.6"/>
+        </g>
+
+        <!-- Símbolo Câmera CFTV -->
+        <g id="sym-cftv">
+          <circle cx="0" cy="0" r="11" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+          <path d="M -5 -3 L 4 -7 L 4 7 L -5 3 Z" fill="#dc2626"/>
+          <circle cx="5" cy="0" r="2.5" fill="#ffffff"/>
+        </g>
+
+        <!-- Símbolo AP Wi-Fi -->
+        <g id="sym-ap">
+          <circle cx="0" cy="0" r="11" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+          <circle cx="0" cy="0" r="3" fill="#9333ea"/>
+          <path d="M -6 -3.5 A 7 7 0 0 1 6 -3.5" fill="none" stroke="#9333ea" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M -9 -6.5 A 11 11 0 0 1 9 -6.5" fill="none" stroke="#9333ea" stroke-width="1.8" stroke-linecap="round"/>
+        </g>
+
+        <!-- Símbolos de Colunas e Divisórias -->
+        <g id="pillar-sq">
+          <rect x="-15" y="-15" width="30" height="30" class="pillar-body"/>
+          <line x1="-15" y1="-15" x2="15" y2="15" class="pillar-hatch"/>
+          <line x1="-15" y1="15" x2="15" y2="-15" class="pillar-hatch"/>
+        </g>
+        <g id="pillar-rect">
+          <rect x="-15" y="-30" width="30" height="60" class="pillar-body"/>
+          <line x1="-15" y1="-30" x2="15" y2="30" class="pillar-hatch"/>
+          <line x1="-15" y1="30" x2="15" y2="-30" class="pillar-hatch"/>
+        </g>
+        <g id="part-wall-h">
+          <line x1="-60" y1="0" x2="60" y2="0" class="partition-wall"/>
+          <circle cx="-60" cy="0" r="3" fill="#334155"/>
+          <circle cx="60" cy="0" r="3" fill="#334155"/>
+        </g>
+        <g id="part-wall-v">
+          <line x1="0" y1="-60" x2="0" y2="60" class="partition-wall"/>
+          <circle cx="0" cy="-60" r="3" fill="#334155"/>
+          <circle cx="0" cy="60" r="3" fill="#334155"/>
+        </g>
+
+        <!-- Modelos de Móveis -->
+        <g id="desk-l">
+          <rect x="-30" y="-25" width="60" height="50" class="table-top" rx="2"/>
+          <rect x="12" y="-11" width="4" height="22" fill="#334155" rx="1"/>
+          <rect x="-24" y="-12" width="20" height="24" class="chair-seat"/>
+          <path d="M -26 -14 Q -31 0 -26 14" class="chair-back"/>
+        </g>
+        <g id="desk-r">
+          <rect x="-30" y="-25" width="60" height="50" class="table-top" rx="2"/>
+          <rect x="-16" y="-11" width="4" height="22" fill="#334155" rx="1"/>
+          <rect x="4" y="-12" width="20" height="24" class="chair-seat"/>
+          <path d="M 26 -14 Q 31 0 26 14" class="chair-back"/>
+        </g>
+        <g id="desk-dual">
+          <rect x="-50" y="-25" width="100" height="50" class="table-top" rx="2"/>
+          <line x1="0" y1="-25" x2="0" y2="25" stroke="#64748b" stroke-width="1.5" stroke-dasharray="3 2"/>
+          <rect x="-10" y="-11" width="4" height="22" fill="#334155" rx="1"/>
+          <rect x="-42" y="-12" width="20" height="24" class="chair-seat"/>
+          <path d="M -44 -14 Q -49 0 -44 14" class="chair-back"/>
+          <rect x="6" y="-11" width="4" height="22" fill="#334155" rx="1"/>
+          <rect x="22" y="-12" width="20" height="24" class="chair-seat"/>
+          <path d="M 44 -14 Q 49 0 44 14" class="chair-back"/>
+        </g>
+        <g id="quad-island">
+          <rect x="-120" y="-32.5" width="240" height="65" class="table-top" rx="2"/>
+          <line x1="0" y1="-32.5" x2="0" y2="32.5" stroke="#64748b" stroke-width="1.5" stroke-dasharray="3 2"/>
+          <circle cx="-60" cy="-45" r="15" class="chair-seat"/>
+          <circle cx="60" cy="-45" r="15" class="chair-seat"/>
+          <circle cx="-60" cy="45" r="15" class="chair-seat"/>
+          <circle cx="60" cy="45" r="15" class="chair-seat"/>
+        </g>
+        <g id="desk-l-shape-l">
+          <path d="M -40 -35 L 40 -35 L 40 35 L -10 35 L -10 -5 L -40 -5 Z" class="table-top"/>
+          <circle cx="15" cy="0" r="16" class="chair-seat"/>
+        </g>
+        <g id="desk-l-shape-r">
+          <path d="M -40 -35 L 40 -35 L 40 -5 L 10 -5 L 10 35 L -40 35 Z" class="table-top"/>
+          <circle cx="-15" cy="0" r="16" class="chair-seat"/>
+        </g>
+        <g id="meeting-round">
+          <circle cx="0" cy="0" r="75" class="table-top"/>
+          <circle cx="0" cy="-90" r="14" class="chair-seat"/>
+          <circle cx="64" cy="-64" r="14" class="chair-seat"/>
+          <circle cx="90" cy="0" r="14" class="chair-seat"/>
+          <circle cx="64" cy="64" r="14" class="chair-seat"/>
+          <circle cx="0" cy="90" r="14" class="chair-seat"/>
+          <circle cx="-64" cy="64" r="14" class="chair-seat"/>
+          <circle cx="-90" cy="0" r="14" class="chair-seat"/>
+          <circle cx="-64" cy="-64" r="14" class="chair-seat"/>
+        </g>
+        <g id="bench-rect">
+          <rect x="-100" y="-30" width="200" height="60" class="table-top" rx="3"/>
+          <circle cx="-60" cy="-45" r="14" class="chair-seat"/>
+          <circle cx="0" cy="-45" r="14" class="chair-seat"/>
+          <circle cx="60" cy="-45" r="14" class="chair-seat"/>
+          <circle cx="-60" cy="45" r="14" class="chair-seat"/>
+          <circle cx="0" cy="45" r="14" class="chair-seat"/>
+          <circle cx="60" cy="45" r="14" class="chair-seat"/>
+        </g>
+      </defs>
+
+      <g id="canvas-content">
+        <!-- CAMADA 1: PERÍMETRO EXTERNO E ESCADA (FIXOS) -->
+        <g id="layer-walls-outer">
+          <rect x="80" y="60" width="2640" height="960" class="wall-solid" stroke-width="8"/>
+          <rect x="80" y="60" width="240" height="960" fill="#f1f5f9" stroke="#0f172a" stroke-width="5"/>
+          <line x1="80" y1="160" x2="320" y2="160" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="240" x2="320" y2="240" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="320" x2="320" y2="320" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="400" x2="320" y2="400" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="480" x2="320" y2="480" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="560" x2="320" y2="560" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="640" x2="320" y2="640" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="720" x2="320" y2="720" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="800" x2="320" y2="800" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="880" x2="320" y2="880" stroke="#64748b" stroke-width="1.8"/>
+          <line x1="80" y1="960" x2="320" y2="960" stroke="#64748b" stroke-width="1.8"/>
+          <text x="200" y="540" font-size="19" font-weight="800" fill="#64748b" transform="rotate(-90 200 540)" text-anchor="middle" letter-spacing="4">ESCADA DE ACESSO</text>
+
+          <!-- RACK A 44U Fixo[cite: 1, 3] -->
+          <rect x="2420" y="495" width="160" height="90" fill="#1e293b" stroke="#0284c7" stroke-width="3" rx="4"/>
+          <text x="2500" y="535" font-size="13.5" font-weight="900" fill="#38bdf8" text-anchor="middle">RACK A (44U)</text>
+          <text x="2500" y="555" font-size="9.5" font-weight="700" fill="#94a3b8" text-anchor="middle">171 CABOS CONVERGENTES</text>
+          <rect x="2485" y="475" width="30" height="20" fill="#cbd5e1" stroke="#475569" stroke-width="1.5"/>
+        </g>
+
+        <!-- CAMADA 1.1: PORTAS DINÂMICAS E MÓVEIS -->
+        <g id="layer-doors-all"></g>
+
+        <!-- CAMADA 1.2: PAREDES INTERNAS DINÂMICAS COM ALÇAS (REDIMENSIONÁVEIS) -->
+        <g id="layer-walls-dynamic"></g>
+
+        <!-- CAMADA 1.5: COLUNAS ESTRUTURAIS E DIVISÓRIAS -->
+        <g id="layer-pillars-all"></g>
+
+        <!-- CAMADA 2: TODO O MOBILIÁRIO TÉCNICO -->
+        <g id="layer-furniture-all"></g>
+
+        <!-- CAMADA 3: NOMES E DESCRIÇÕES DAS SALAS -->
+        <g id="layer-rooms"></g>
+
+        <!-- CAMADA 4: PONTOS RJ45 DINÂMICOS -->
+        <g id="layer-points"></g>
+
+        <!-- CAMADA 5: CFTV E AP -->
+        <g id="layer-cftv-all"></g>
+
+        <!-- CAMADA 6: LINHA DE FLUXO -->
+        <g id="layer-flow">
+          <path d="M 440 160 L 680 160 L 680 910" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 680 910 L 760 170" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 760 170 L 1180 170" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 1180 170 L 1270 170" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 1270 170 L 1650 170" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 1650 170 L 1740 170" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 1740 170 L 2120 170" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 2120 170 L 2220 190 L 2420 520" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 780 730 L 1680 730" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 1680 730 L 2020 760" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 2020 760 L 2650 850" class="flow-path" marker-end="url(#arrow-flow)"/>
+          <path d="M 2650 850 L 2500 590" class="flow-path" marker-end="url(#arrow-flow)"/>
+        </g>
+
+        <!-- Silhueta Ghost -->
+        <g id="ghost-preview">
+          <use id="ghost-use" href="#desk-r"/>
+        </g>
+
+        <!-- Retângulo da Seleção em Área -->
+        <rect id="selection-rect" x="0" y="0" width="0" height="0"/>
+      </g>
+    </svg>
+  </div>
+
+  <script>
+    // BASE DE DADOS ORIGINAL DE PORTAS (100% DINÂMICAS E MÓVEIS)
+    const defaultDoors = [
+      { id: "dr_1", x: 330, y: 480, rot: 0, size: 50 },
+      { id: "dr_2", x: 730, y: 480, rot: 0, size: 50 },
+      { id: "dr_3", x: 1210, y: 480, rot: 0, size: 50 },
+      { id: "dr_4", x: 1690, y: 480, rot: 0, size: 50 },
+      { id: "dr_5", x: 2170, y: 480, rot: 0, size: 50 },
+      { id: "dr_6", x: 330, y: 600, rot: 90, size: 50 },
+      { id: "dr_7", x: 730, y: 600, rot: 90, size: 50 },
+      { id: "dr_8", x: 1930, y: 600, rot: 90, size: 50 }
+    ];
+
+    // BASE DE DADOS ORIGINAL DE PAREDES INTERNAS
+    const defaultWalls = [
+      { id: "w_corr_top", x1: 320, y1: 480, x2: 2720, y2: 480 },
+      { id: "w_corr_bot", x1: 320, y1: 600, x2: 2720, y2: 600 },
+      { id: "w_div_top_1", x1: 720, y1: 60, x2: 720, y2: 480 },
+      { id: "w_div_top_2", x1: 1200, y1: 60, x2: 1200, y2: 480 },
+      { id: "w_div_top_3", x1: 1680, y1: 60, x2: 1680, y2: 480 },
+      { id: "w_div_top_4", x1: 2160, y1: 60, x2: 2160, y2: 480 },
+      { id: "w_div_bot_1", x1: 720, y1: 600, x2: 720, y2: 1020 },
+      { id: "w_div_bot_2", x1: 1400, y1: 600, x2: 1400, y2: 1020 },
+      { id: "w_div_bot_3", x1: 1920, y1: 600, x2: 1920, y2: 1020 },
+      { id: "w_s1_part", x1: 2450, y1: 120, x2: 2450, y2: 430 }
+    ];
+
+    const defaultFurnitures = [
+      { id: "f_s1_1", type: "desk-l", x: 2660, y: 155, rot: 0 },
+      { id: "f_s1_2", type: "desk-l", x: 2660, y: 255, rot: 0 },
+      { id: "f_s1_3", type: "desk-l", x: 2660, y: 355, rot: 0 },
+      { id: "f_s1_4", type: "desk-r", x: 2490, y: 155, rot: 0 },
+      { id: "f_s1_5", type: "desk-r", x: 2490, y: 230, rot: 0 },
+      { id: "f_s1_6", type: "desk-r", x: 2490, y: 305, rot: 0 },
+      { id: "f_s1_7", type: "desk-r", x: 2490, y: 380, rot: 0 },
+      { id: "f_s1_8", type: "desk-l", x: 2410, y: 155, rot: 0 },
+      { id: "f_s1_9", type: "desk-l", x: 2410, y: 230, rot: 0 },
+      { id: "f_s1_10", type: "desk-l", x: 2410, y: 305, rot: 0 },
+      { id: "f_s1_11", type: "desk-r", x: 2210, y: 155, rot: 0 },
+      { id: "f_s1_12", type: "desk-r", x: 2210, y: 230, rot: 0 },
+      { id: "f_s1_13", type: "desk-r", x: 2210, y: 305, rot: 0 },
+      { id: "f_s1_14", type: "desk-r", x: 2260, y: 440, rot: 90 },
+
+      { id: "f_s2_1", type: "desk-r", x: 1750, y: 165, rot: 0 },
+      { id: "f_s2_2", type: "desk-l", x: 1850, y: 165, rot: 0 },
+      { id: "f_s2_3", type: "desk-r", x: 1970, y: 165, rot: 0 },
+      { id: "f_s2_4", type: "desk-l", x: 2070, y: 165, rot: 0 },
+      { id: "f_s2_5", type: "desk-r", x: 1750, y: 345, rot: 0 },
+      { id: "f_s2_6", type: "desk-l", x: 1850, y: 345, rot: 0 },
+      { id: "f_s2_7", type: "desk-r", x: 1970, y: 345, rot: 0 },
+      { id: "f_s2_8", type: "desk-l", x: 2070, y: 345, rot: 0 },
+
+      { id: "f_s3_1", type: "desk-l-shape-l", x: 1335, y: 200, rot: 0 },
+      { id: "f_s3_2", type: "desk-l-shape-r", x: 1525, y: 200, rot: 0 },
+      { id: "f_s3_3", type: "desk-dual", x: 1335, y: 360, rot: 0 },
+      { id: "f_s3_4", type: "desk-dual", x: 1525, y: 360, rot: 0 },
+
+      { id: "f_s4_1", type: "desk-r", x: 810, y: 165, rot: 0 },
+      { id: "f_s4_2", type: "desk-l", x: 910, y: 165, rot: 0 },
+      { id: "f_s4_3", type: "desk-r", x: 1030, y: 165, rot: 0 },
+      { id: "f_s4_4", type: "desk-l", x: 1130, y: 165, rot: 0 },
+      { id: "f_s4_5", type: "desk-r", x: 810, y: 345, rot: 0 },
+      { id: "f_s4_6", type: "desk-l", x: 910, y: 345, rot: 0 },
+      { id: "f_s4_7", type: "desk-r", x: 1030, y: 345, rot: 0 },
+      { id: "f_s4_8", type: "desk-l", x: 1130, y: 345, rot: 0 },
+
+      { id: "f_s5_1", type: "desk-r", x: 390, y: 175, rot: 0 },
+      { id: "f_s5_2", type: "desk-l", x: 490, y: 175, rot: 0 },
+      { id: "f_s5_3", type: "desk-r", x: 610, y: 175, rot: 0 },
+      { id: "f_s5_4", type: "desk-r", x: 390, y: 335, rot: 0 },
+      { id: "f_s5_5", type: "desk-l", x: 490, y: 335, rot: 0 },
+      { id: "f_s5_6", type: "desk-r", x: 610, y: 335, rot: 0 },
+      { id: "f_s5_7", type: "desk-r", x: 390, y: 685, rot: 0 },
+      { id: "f_s5_8", type: "desk-l", x: 490, y: 685, rot: 0 },
+      { id: "f_s5_9", type: "desk-r", x: 610, y: 685, rot: 0 },
+      { id: "f_s5_10", type: "desk-r", x: 390, y: 845, rot: 0 },
+      { id: "f_s5_11", type: "desk-l", x: 490, y: 845, rot: 0 },
+      { id: "f_s5_12", type: "desk-r", x: 610, y: 845, rot: 0 },
+
+      { id: "f_s6_1", type: "quad-island", x: 900, y: 760, rot: 0 },
+      { id: "f_s6_2", type: "quad-island", x: 1220, y: 760, rot: 0 },
+      { id: "f_s6_3", type: "quad-island", x: 1570, y: 760, rot: 0 },
+
+      { id: "f_s7_1", type: "meeting-round", x: 2180, y: 790, rot: 0 },
+      { id: "f_s7_2", type: "bench-rect", x: 2550, y: 760, rot: 0 }
+    ];
+
+    const defaultRooms = [
+      { id: "r1", x: 2440, y: 95, name: "SALA 01 - BASTIDOR DE TI", desc: "RACK PRINCIPAL A (44U) • CHEGADA DE 171 CABOS", nameSize: 16, descSize: 10 },
+      { id: "r2", x: 1920, y: 95, name: "SALA 02", desc: "ASSESSORIA TÉCNICA E ATENDIMENTO", nameSize: 16, descSize: 10 },
+      { id: "r3", x: 1440, y: 95, name: "SALA 03", desc: "GABINETE DEFENSORIAL", nameSize: 16, descSize: 10 },
+      { id: "r4", x: 960, y: 95, name: "SALA 04", desc: "COORDENAÇÃO OPERACIONAL", nameSize: 16, descSize: 10 },
+      { id: "r5", x: 520, y: 95, name: "SALA 05 (NORTE)", desc: "", nameSize: 16, descSize: 10 },
+      { id: "r6", x: 520, y: 555, name: "CORREDOR PRINCIPAL", desc: "", nameSize: 16, descSize: 10 },
+      { id: "r7", x: 520, y: 995, name: "SALA 05 (SUL)", desc: "", nameSize: 16, descSize: 10 },
+      { id: "r8", x: 1320, y: 995, name: "SALA 06 - ILHAS OPERACIONAIS", desc: "", nameSize: 16, descSize: 10 },
+      { id: "r9", x: 2320, y: 995, name: "SALA 07 - REUNIÃO TÉCNICA", desc: "", nameSize: 16, descSize: 10 }
+    ];
+
+    const defaultPoints = [
+      { id: "p1", x: 2460, y: 760, lbl1: "02A0101", lbl2: "02A0102", type: "start", rot: "d" },
+      { id: "p2", x: 2620, y: 760, lbl1: "02A0103", lbl2: "02A0104", type: "mid", rot: "d" },
+      { id: "p3", x: 2655, y: 140, lbl1: "02A0111", lbl2: "02A0112", type: "mid", rot: "l" },
+      { id: "p4", x: 2655, y: 240, lbl1: "02A0109", lbl2: "02A0110", type: "mid", rot: "l" },
+      { id: "p5", x: 2655, y: 340, lbl1: "02A0107", lbl2: "02A0108", type: "mid", rot: "l" },
+      { id: "p6", x: 2515, y: 140, lbl1: "02A0113", lbl2: "02A0114", type: "mid", rot: "r" },
+      { id: "p7", x: 2515, y: 215, lbl1: "02A0115", lbl2: "02A0116", type: "mid", rot: "r" },
+      { id: "p8", x: 2515, y: 290, lbl1: "02A0117", lbl2: "02A0118", type: "mid", rot: "r" },
+      { id: "p9", x: 2515, y: 365, lbl1: "02A0119", lbl2: "02A0120", type: "mid", rot: "r" },
+      { id: "p10", x: 2395, y: 215, lbl1: "02A0123", lbl2: "02A0124", type: "mid", rot: "l" },
+      { id: "p11", x: 2260, y: 445, lbl1: "02A0121", lbl2: "02A0122", type: "end", rot: "u" },
+      { id: "p12", x: 2395, y: 140, lbl1: "02A0203", lbl2: "02A0204", type: "start", rot: "l" },
+      { id: "p13", x: 2300, y: 140, lbl1: "02A0205", lbl2: "02A0206", type: "mid", rot: "l" },
+      { id: "p14", x: 2300, y: 215, lbl1: "02A0207", lbl2: "02A0208", type: "mid", rot: "l" },
+      { id: "p15", x: 1765, y: 150, lbl1: "02A0201", lbl2: "02A0202", type: "mid", rot: "r" },
+      { id: "p16", x: 1845, y: 150, lbl1: "02A0209", lbl2: "02A0210", type: "mid", rot: "l" },
+      { id: "p17", x: 1975, y: 150, lbl1: "02A0211", lbl2: "02A0212", type: "mid", rot: "r" },
+      { id: "p18", x: 2065, y: 150, lbl1: "02A0213", lbl2: "02A0214", type: "mid", rot: "l" },
+      { id: "p19", x: 1765, y: 335, lbl1: "02A0215", lbl2: "02A0216", type: "mid", rot: "r" },
+      { id: "p20", x: 1845, y: 335, lbl1: "02A0217", lbl2: "02A0218", type: "mid", rot: "l" },
+      { id: "p21", x: 1975, y: 335, lbl1: "02A0219", lbl2: "02A0220", type: "mid", rot: "r" },
+      { id: "p22", x: 2065, y: 335, lbl1: "02A0221", lbl2: "02A0222", type: "mid", rot: "l" },
+      { id: "p23", x: 1800, y: 240, lbl1: "02A0223", lbl2: "", type: "mid", rot: "u" },
+      { id: "p24", x: 2020, y: 240, lbl1: "02A0224", lbl2: "", type: "end", rot: "u" },
+      { id: "p25", x: 1335, y: 155, lbl1: "02A0301", lbl2: "02A0302", type: "start", rot: "l" },
+      { id: "p26", x: 1525, y: 155, lbl1: "02A0303", lbl2: "02A0304", type: "mid", rot: "r" },
+      { id: "p27", x: 1335, y: 315, lbl1: "02A0305", lbl2: "02A0306", type: "mid", rot: "u" },
+      { id: "p28", x: 1525, y: 315, lbl1: "02A0307", lbl2: "02A0308", type: "mid", rot: "u" },
+      { id: "p29", x: 1260, y: 235, lbl1: "02A0309", lbl2: "02A0310", type: "mid", rot: "r" },
+      { id: "p30", x: 1620, y: 235, lbl1: "02A0311", lbl2: "02A0312", type: "mid", rot: "l" },
+      { id: "p31", x: 1335, y: 395, lbl1: "02A0313", lbl2: "02A0314", type: "mid", rot: "u" },
+      { id: "p32", x: 1525, y: 395, lbl1: "02A0315", lbl2: "02A0316", type: "mid", rot: "u" },
+      { id: "p33", x: 1260, y: 265, lbl1: "02A0317", lbl2: "02A0318", type: "mid", rot: "r" },
+      { id: "p34", x: 1620, y: 265, lbl1: "02A0319", lbl2: "02A0320", type: "mid", rot: "l" },
+      { id: "p35", x: 1365, y: 115, lbl1: "02A0321", lbl2: "02A0322", type: "mid", rot: "u" },
+      { id: "p36", x: 1545, y: 115, lbl1: "02A0323", lbl2: "02A0324", type: "end", rot: "u" },
+      { id: "p37", x: 850, y: 150, lbl1: "02A0401", lbl2: "02A0402", type: "start", rot: "r" },
+      { id: "p38", x: 1070, y: 150, lbl1: "02A0403", lbl2: "02A0404", type: "mid", rot: "l" },
+      { id: "p39", x: 850, y: 335, lbl1: "02A0405", lbl2: "02A0406", type: "mid", rot: "r" },
+      { id: "p40", x: 1070, y: 335, lbl1: "02A0407", lbl2: "02A0408", type: "mid", rot: "l" },
+      { id: "p41", x: 860, y: 235, lbl1: "02A0409", lbl2: "02A0410", type: "mid", rot: "r" },
+      { id: "p42", x: 1060, y: 235, lbl1: "02A0411", lbl2: "02A0412", type: "mid", rot: "l" },
+      { id: "p43", x: 860, y: 415, lbl1: "02A0413", lbl2: "02A0414", type: "mid", rot: "r" },
+      { id: "p44", x: 1060, y: 415, lbl1: "02A0415", lbl2: "02A0416", type: "mid", rot: "l" },
+      { id: "p45", x: 760, y: 235, lbl1: "02A0417", lbl2: "02A0418", type: "mid", rot: "r" },
+      { id: "p46", x: 1160, y: 235, lbl1: "02A0419", lbl2: "02A0420", type: "mid", rot: "l" },
+      { id: "p47", x: 860, y: 115, lbl1: "02A0421", lbl2: "02A0422", type: "mid", rot: "u" },
+      { id: "p48", x: 1060, y: 115, lbl1: "02A0423", lbl2: "02A0424", type: "end", rot: "u" },
+      { id: "p49", x: 440, y: 140, lbl1: "02A0501", lbl2: "02A0502", type: "start", rot: "r" },
+      { id: "p50", x: 610, y: 140, lbl1: "02A0503", lbl2: "02A0504", type: "mid", rot: "l" },
+      { id: "p51", x: 440, y: 300, lbl1: "02A0505", lbl2: "02A0506", type: "mid", rot: "r" },
+      { id: "p52", x: 610, y: 300, lbl1: "02A0507", lbl2: "02A0508", type: "mid", rot: "l" },
+      { id: "p53", x: 440, y: 650, lbl1: "02A0509", lbl2: "02A0510", type: "mid", rot: "r" },
+      { id: "p54", x: 610, y: 650, lbl1: "02A0511", lbl2: "02A0512", type: "mid", rot: "l" },
+      { id: "p55", x: 440, y: 810, lbl1: "02A0513", lbl2: "02A0514", type: "mid", rot: "r" },
+      { id: "p56", x: 610, y: 810, lbl1: "02A0515", lbl2: "02A0516", type: "mid", rot: "l" },
+      { id: "p57", x: 370, y: 230, lbl1: "02A0507", lbl2: "02A0508", type: "mid", rot: "r" },
+      { id: "p58", x: 370, y: 750, lbl1: "02A0519", lbl2: "02A0520", type: "mid", rot: "r" },
+      { id: "p59", x: 530, y: 930, lbl1: "02A0521", lbl2: "02A0522", type: "end", rot: "d" },
+      { id: "p60", x: 840, y: 695, lbl1: "02A0601", lbl2: "02A0602", type: "start", rot: "d" },
+      { id: "p61", x: 960, y: 695, lbl1: "02A0603", lbl2: "02A0604", type: "mid", rot: "d" },
+      { id: "p62", x: 840, y: 830, lbl1: "02A0605", lbl2: "02A0606", type: "mid", rot: "u" },
+      { id: "p63", x: 960, y: 830, lbl1: "02A0607", lbl2: "02A0608", type: "mid", rot: "u" },
+      { id: "p64", x: 1160, y: 695, lbl1: "02A0609", lbl2: "02A0610", type: "mid", rot: "d" },
+      { id: "p65", x: 1280, y: 695, lbl1: "02A0611", lbl2: "02A0612", type: "mid", rot: "d" },
+      { id: "p66", x: 1160, y: 830, lbl1: "02A0613", lbl2: "02A0614", type: "mid", rot: "u" },
+      { id: "p67", x: 1280, y: 830, lbl1: "02A0615", lbl2: "02A0616", type: "mid", rot: "u" },
+      { id: "p68", x: 1510, y: 695, lbl1: "02A0617", lbl2: "02A0618", type: "mid", rot: "d" },
+      { id: "p69", x: 1630, y: 695, lbl1: "02A0619", lbl2: "02A0620", type: "mid", rot: "d" },
+      { id: "p70", x: 1510, y: 830, lbl1: "02A0621", lbl2: "02A0622", type: "mid", rot: "u" },
+      { id: "p71", x: 1630, y: 830, lbl1: "02A0623", lbl2: "02A0624", type: "end", rot: "u" },
+      { id: "p72", x: 2085, y: 785, lbl1: "02A0701", lbl2: "02A0702", type: "start", rot: "r" },
+      { id: "p73", x: 2275, y: 785, lbl1: "02A0703", lbl2: "02A0704", type: "mid", rot: "l" },
+      { id: "p74", x: 2180, y: 855, lbl1: "02A0705", lbl2: "02A0706", type: "mid", rot: "u" },
+      { id: "p75", x: 2180, y: 725, lbl1: "02A0707", lbl2: "02A0708", type: "mid", rot: "d" },
+      { id: "p76", x: 2380, y: 700, lbl1: "02A0709", lbl2: "02A0710", type: "mid", rot: "d" },
+      { id: "p77", x: 2500, y: 700, lbl1: "02A0711", lbl2: "02A0712", type: "mid", rot: "d" },
+      { id: "p78", x: 2620, y: 700, lbl1: "02A0713", lbl2: "02A0714", type: "mid", rot: "d" },
+      { id: "p79", x: 2380, y: 875, lbl1: "02A0715", lbl2: "02A0716", type: "mid", rot: "u" },
+      { id: "p80", x: 2500, y: 875, lbl1: "02A0717", lbl2: "02A0718", type: "mid", rot: "u" },
+      { id: "p81", x: 2620, y: 875, lbl1: "02A0723", lbl2: "02A0724", type: "end", rot: "u" }
+    ];
+
+    const defaultCftv = [
+      { id: "c_ap1", type: "ap", x: 980, y: 540, lbl: "02A0719", rot: 0 },
+      { id: "c_ap2", type: "ap", x: 1960, y: 540, lbl: "02A0720", rot: 0 },
+      { id: "c_cftv1", type: "cftv", x: 360, y: 90, lbl: "02A0721", rot: 0 },
+      { id: "c_cftv2", type: "cftv", x: 360, y: 990, lbl: "02A0722", rot: 180 },
+      { id: "c_cftv3", type: "cftv", x: 420, y: 540, lbl: "02A0723", rot: 0 },
+      { id: "c_cftv4", type: "cftv", x: 2250, y: 540, lbl: "02A0801", rot: 0 },
+      { id: "c_cftv5", type: "cftv", x: 2360, y: 420, lbl: "02A0802", rot: 180 },
+      { id: "c_cftv6", type: "cftv", x: 2680, y: 420, lbl: "02A0803", rot: 180 },
+      { id: "c_cftv7", type: "cftv", x: 2680, y: 930, lbl: "02A0724", rot: 180 }
+    ];
+
+    const defaultPillars = [
+      { id: "pil_1", type: "pillar-sq", x: 720, y: 480, rot: 0 },
+      { id: "pil_2", type: "pillar-sq", x: 1200, y: 480, rot: 0 },
+      { id: "pil_3", type: "pillar-sq", x: 1680, y: 480, rot: 0 },
+      { id: "pil_4", type: "pillar-sq", x: 2160, y: 480, rot: 0 },
+      { id: "pil_5", type: "pillar-sq", x: 720, y: 600, rot: 0 },
+      { id: "pil_6", type: "pillar-sq", x: 1400, y: 600, rot: 0 },
+      { id: "pil_7", type: "pillar-sq", x: 1920, y: 600, rot: 0 }
+    ];
+
+    let points = [];
+    let rooms = [];
+    let furnitures = [];
+    let cftvs = [];
+    let pillars = [];
+    let walls = [];
+    let doors = [];
+    let selectedItemIds = new Set();
+
+    const STORAGE_KEY_POINTS = 'dpe_pa_cad_points_v9';
+    const STORAGE_KEY_ROOMS = 'dpe_pa_cad_rooms_v9';
+    const STORAGE_KEY_FURN = 'dpe_pa_cad_furn_v9';
+    const STORAGE_KEY_CFTV = 'dpe_pa_cad_cftv_v9';
+    const STORAGE_KEY_PILLARS = 'dpe_pa_cad_pillars_v9';
+    const STORAGE_KEY_WALLS = 'dpe_pa_cad_walls_v9';
+    const STORAGE_KEY_DOORS = 'dpe_pa_cad_doors_v9';
+
+    const undoStack = [];
+    const redoStack = [];
+    const MAX_HISTORY = 40;
+
+    function pushHistory() {
+      const state = {
+        points: JSON.parse(JSON.stringify(points)),
+        rooms: JSON.parse(JSON.stringify(rooms)),
+        furnitures: JSON.parse(JSON.stringify(furnitures)),
+        cftvs: JSON.parse(JSON.stringify(cftvs)),
+        pillars: JSON.parse(JSON.stringify(pillars)),
+        walls: JSON.parse(JSON.stringify(walls)),
+        doors: JSON.parse(JSON.stringify(doors))
+      };
+      undoStack.push(state);
+      if (undoStack.length > MAX_HISTORY) undoStack.shift();
+      redoStack.length = 0;
+      updateHistoryButtons();
+    }
+
+    function undo() {
+      if (undoStack.length === 0) return;
+      const currentState = {
+        points: JSON.parse(JSON.stringify(points)),
+        rooms: JSON.parse(JSON.stringify(rooms)),
+        furnitures: JSON.parse(JSON.stringify(furnitures)),
+        cftvs: JSON.parse(JSON.stringify(cftvs)),
+        pillars: JSON.parse(JSON.stringify(pillars)),
+        walls: JSON.parse(JSON.stringify(walls)),
+        doors: JSON.parse(JSON.stringify(doors))
+      };
+      redoStack.push(currentState);
+      const prevState = undoStack.pop();
+      points = prevState.points;
+      rooms = prevState.rooms;
+      furnitures = prevState.furnitures || [];
+      cftvs = prevState.cftvs || [];
+      pillars = prevState.pillars || [];
+      walls = prevState.walls || [];
+      doors = prevState.doors || [];
+      clearSelection();
+      saveCurrentState();
+      renderAll();
+      updateHistoryButtons();
+    }
+
+    function redo() {
+      if (redoStack.length === 0) return;
+      const currentState = {
+        points: JSON.parse(JSON.stringify(points)),
+        rooms: JSON.parse(JSON.stringify(rooms)),
+        furnitures: JSON.parse(JSON.stringify(furnitures)),
+        cftvs: JSON.parse(JSON.stringify(cftvs)),
+        pillars: JSON.parse(JSON.stringify(pillars)),
+        walls: JSON.parse(JSON.stringify(walls)),
+        doors: JSON.parse(JSON.stringify(doors))
+      };
+      undoStack.push(currentState);
+      const nextState = redoStack.pop();
+      points = nextState.points;
+      rooms = nextState.rooms;
+      furnitures = nextState.furnitures || [];
+      cftvs = nextState.cftvs || [];
+      pillars = nextState.pillars || [];
+      walls = nextState.walls || [];
+      doors = nextState.doors || [];
+      clearSelection();
+      saveCurrentState();
+      renderAll();
+      updateHistoryButtons();
+    }
+
+    function updateHistoryButtons() {
+      document.getElementById('btn-undo').disabled = undoStack.length === 0;
+      document.getElementById('btn-redo').disabled = redoStack.length === 0;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedItemIds.size > 0) {
+          e.preventDefault();
+          deleteSelectedItems();
+        }
+      }
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          if (e.shiftKey) { e.preventDefault(); redo(); }
+          else { e.preventDefault(); undo(); }
+        } else if (e.key === 'y' || e.key === 'Y') {
+          e.preventDefault(); redo();
+        }
+      }
+    });
+
+    function loadData() {
+      const savedPoints = localStorage.getItem(STORAGE_KEY_POINTS);
+      const savedRooms = localStorage.getItem(STORAGE_KEY_ROOMS);
+      const savedFurn = localStorage.getItem(STORAGE_KEY_FURN);
+      const savedCftv = localStorage.getItem(STORAGE_KEY_CFTV);
+      const savedPillars = localStorage.getItem(STORAGE_KEY_PILLARS);
+      const savedWalls = localStorage.getItem(STORAGE_KEY_WALLS);
+      const savedDoors = localStorage.getItem(STORAGE_KEY_DOORS);
+
+      points = savedPoints ? JSON.parse(savedPoints) : JSON.parse(JSON.stringify(defaultPoints));
+      rooms = savedRooms ? JSON.parse(savedRooms) : JSON.parse(JSON.stringify(defaultRooms));
+      furnitures = savedFurn ? JSON.parse(savedFurn) : JSON.parse(JSON.stringify(defaultFurnitures));
+      cftvs = savedCftv ? JSON.parse(savedCftv) : JSON.parse(JSON.stringify(defaultCftv));
+      pillars = savedPillars ? JSON.parse(savedPillars) : JSON.parse(JSON.stringify(defaultPillars));
+      walls = savedWalls ? JSON.parse(savedWalls) : JSON.parse(JSON.stringify(defaultWalls));
+      doors = savedDoors ? JSON.parse(savedDoors) : JSON.parse(JSON.stringify(defaultDoors));
+      renderAll();
+    }
+
+    function saveCurrentState() {
+      localStorage.setItem(STORAGE_KEY_POINTS, JSON.stringify(points));
+      localStorage.setItem(STORAGE_KEY_ROOMS, JSON.stringify(rooms));
+      localStorage.setItem(STORAGE_KEY_FURN, JSON.stringify(furnitures));
+      localStorage.setItem(STORAGE_KEY_CFTV, JSON.stringify(cftvs));
+      localStorage.setItem(STORAGE_KEY_PILLARS, JSON.stringify(pillars));
+      localStorage.setItem(STORAGE_KEY_WALLS, JSON.stringify(walls));
+      localStorage.setItem(STORAGE_KEY_DOORS, JSON.stringify(doors));
+      updateAudit();
+    }
+
+    function renderAll() {
+      renderDoors();
+      renderWalls();
+      renderPillars();
+      renderRooms();
+      renderFurnitures();
+      renderPoints();
+      renderCftvs();
+      updateSelectionVisuals();
+    }
+
+    function resetToDefault() {
+      if (confirm("Deseja restaurar todos os elementos (portas, paredes, móveis, pontos e salas) para a posição original de projeto?")) {
+        pushHistory();
+        points = JSON.parse(JSON.stringify(defaultPoints));
+        rooms = JSON.parse(JSON.stringify(defaultRooms));
+        furnitures = JSON.parse(JSON.stringify(defaultFurnitures));
+        cftvs = JSON.parse(JSON.stringify(defaultCftv));
+        pillars = JSON.parse(JSON.stringify(defaultPillars));
+        walls = JSON.parse(JSON.stringify(defaultWalls));
+        doors = JSON.parse(JSON.stringify(defaultDoors));
+        clearSelection();
+        saveCurrentState();
+        renderAll();
+      }
+    }
+
+    // RENDERIZAR PORTAS (CAMADA 1.1)
+    const layerDoorsAll = document.getElementById('layer-doors-all');
+
+    function renderDoors() {
+      layerDoorsAll.innerHTML = '';
+      doors.forEach(dr => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "door-item" + (selectedItemIds.has(dr.id) ? " selected-item" : ""));
+        g.setAttribute("id", dr.id);
+        g.setAttribute("transform", `translate(${dr.x}, ${dr.y}) rotate(${dr.rot || 0})`);
+
+        const s = dr.size || 50;
+
+        // Folha da Porta
+        const leaf = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        leaf.setAttribute("x1", 0);
+        leaf.setAttribute("y1", 0);
+        leaf.setAttribute("x2", 0);
+        leaf.setAttribute("y2", -s);
+        leaf.setAttribute("class", "door-leaf-line");
+        g.appendChild(leaf);
+
+        // Arco de Giro de Abertura
+        const swing = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        swing.setAttribute("d", `M 0 -${s} A ${s} ${s} 0 0 1 ${s} 0`);
+        swing.setAttribute("class", "door-swing-arc");
+        g.appendChild(swing);
+
+        // Pivô / Batente de fixação
+        const pivot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        pivot.setAttribute("cx", 0);
+        pivot.setAttribute("cy", 0);
+        pivot.setAttribute("r", 3.5);
+        pivot.setAttribute("class", "door-pivot");
+        g.appendChild(pivot);
+
+        g.addEventListener('mousedown', (e) => onElementMouseDown(e, dr, 'door'));
+        g.addEventListener('click', (e) => onDoorClick(e, dr));
+
+        layerDoorsAll.appendChild(g);
+      });
+      updateAudit();
+    }
+
+    // RENDERIZAR PAREDES DINÂMICAS COM ALÇAS (CAMADA 1.2)
+    const layerWallsDynamic = document.getElementById('layer-walls-dynamic');
+
+    function renderWalls() {
+      layerWallsDynamic.innerHTML = '';
+      walls.forEach(w => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "wall-item" + (selectedItemIds.has(w.id) ? " selected-item" : ""));
+        g.setAttribute("id", w.id);
+
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", w.x1);
+        line.setAttribute("y1", w.y1);
+        line.setAttribute("x2", w.x2);
+        line.setAttribute("y2", w.y2);
+        line.setAttribute("class", "editable-wall-line");
+        g.appendChild(line);
+
+        const h1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        h1.setAttribute("cx", w.x1);
+        h1.setAttribute("cy", w.y1);
+        h1.setAttribute("r", 7);
+        h1.setAttribute("class", "wall-handle");
+        g.appendChild(h1);
+
+        const h2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        h2.setAttribute("cx", w.x2);
+        h2.setAttribute("cy", w.y2);
+        h2.setAttribute("r", 7);
+        h2.setAttribute("class", "wall-handle");
+        g.appendChild(h2);
+
+        line.addEventListener('mousedown', (e) => onElementMouseDown(e, w, 'wall'));
+        h1.addEventListener('mousedown', (e) => onWallHandleMouseDown(e, w, 'p1'));
+        h2.addEventListener('mousedown', (e) => onWallHandleMouseDown(e, w, 'p2'));
+
+        layerWallsDynamic.appendChild(g);
+      });
+      updateAudit();
+    }
+
+    // RENDERIZAR COLUNAS E DIVISÓRIAS
+    const layerPillarsAll = document.getElementById('layer-pillars-all');
+    function renderPillars() {
+      layerPillarsAll.innerHTML = '';
+      pillars.forEach(pil => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "pillar-item" + (selectedItemIds.has(pil.id) ? " selected-item" : ""));
+        g.setAttribute("id", pil.id);
+        g.setAttribute("transform", `translate(${pil.x}, ${pil.y}) rotate(${pil.rot || 0})`);
+
+        const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+        use.setAttribute("href", `#${pil.type}`);
+        g.appendChild(use);
+
+        g.addEventListener('mousedown', (e) => onElementMouseDown(e, pil, 'pillar'));
+        g.addEventListener('click', (e) => onPillarClick(e, pil));
+
+        layerPillarsAll.appendChild(g);
+      });
+    }
+
+    // RENDERIZAR CFTV E APs
+    const layerCftvAll = document.getElementById('layer-cftv-all');
+    function renderCftvs() {
+      layerCftvAll.innerHTML = '';
+      cftvs.forEach(c => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "cftv-item" + (selectedItemIds.has(c.id) ? " selected-item" : ""));
+        g.setAttribute("id", c.id);
+        g.setAttribute("transform", `translate(${c.x}, ${c.y})`);
+
+        const isAp = c.type === 'ap';
+        const sym = document.createElementNS("http://www.w3.org/2000/svg", "use");
+        sym.setAttribute("href", isAp ? "#sym-ap" : "#sym-cftv");
+        sym.setAttribute("transform", `rotate(${c.rot || 0})`);
+        g.appendChild(sym);
+
+        const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        const w = isAp ? 84 : 96;
+        box.setAttribute("x", -w/2);
+        box.setAttribute("y", 15);
+        box.setAttribute("width", w);
+        box.setAttribute("height", 20);
+        box.setAttribute("class", "tag-box");
+        box.setAttribute("style", isAp ? "stroke:#9333ea; fill:#faf5ff;" : "stroke:#dc2626; fill:#fef2f2;");
+        g.appendChild(box);
+
+        const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        txt.setAttribute("x", 0);
+        txt.setAttribute("y", 25);
+        txt.setAttribute("class", "tag-num");
+        txt.setAttribute("style", isAp ? "fill:#6b21a8;" : "fill:#dc2626;");
+        txt.textContent = (isAp ? "AP " : "CFTV ") + c.lbl;
+        g.appendChild(txt);
+
+        g.addEventListener('mousedown', (e) => onElementMouseDown(e, c, 'cftv'));
+        g.addEventListener('click', (e) => onCftvClick(e, c));
+
+        layerCftvAll.appendChild(g);
+      });
+      updateAudit();
+    }
+
+    // RENDERIZAR MÓVEIS
+    const layerFurnAll = document.getElementById('layer-furniture-all');
+    function renderFurnitures() {
+      layerFurnAll.innerHTML = '';
+      furnitures.forEach(f => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "furn-item" + (selectedItemIds.has(f.id) ? " selected-item" : ""));
+        g.setAttribute("id", f.id);
+        g.setAttribute("transform", `translate(${f.x}, ${f.y}) rotate(${f.rot || 0})`);
+
+        const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+        use.setAttribute("href", `#${f.type}`);
+        g.appendChild(use);
+
+        g.addEventListener('mousedown', (e) => onElementMouseDown(e, f, 'furn'));
+        g.addEventListener('click', (e) => onFurnClick(e, f));
+
+        layerFurnAll.appendChild(g);
+      });
+    }
+
+    // RENDERIZAR SALAS
+    const layerRooms = document.getElementById('layer-rooms');
+    function renderRooms() {
+      layerRooms.innerHTML = '';
+      rooms.forEach(r => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "room-text-item");
+        g.setAttribute("id", r.id);
+        g.setAttribute("transform", `translate(${r.x}, ${r.y})`);
+
+        const tName = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        tName.setAttribute("x", 0);
+        tName.setAttribute("y", 0);
+        tName.setAttribute("font-size", r.nameSize || 16);
+        tName.setAttribute("font-weight", "800");
+        tName.setAttribute("fill", "#0f172a");
+        tName.setAttribute("text-anchor", "middle");
+        tName.textContent = r.name;
+        g.appendChild(tName);
+
+        if (r.desc && r.desc.trim().length > 0) {
+          const tDesc = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          tDesc.setAttribute("x", 0);
+          tDesc.setAttribute("y", (r.nameSize || 16) * 1.1);
+          tDesc.setAttribute("font-size", r.descSize || 10);
+          tDesc.setAttribute("font-weight", "600");
+          tDesc.setAttribute("fill", "#64748b");
+          tDesc.setAttribute("text-anchor", "middle");
+          tDesc.textContent = r.desc;
+          g.appendChild(tDesc);
+        }
+
+        g.addEventListener('mousedown', (e) => onElementMouseDown(e, r, 'room'));
+        g.addEventListener('click', (e) => onRoomClick(e, r));
+
+        layerRooms.appendChild(g);
+      });
+    }
+
+    // RENDERIZAR PONTOS
+    const layerPoints = document.getElementById('layer-points');
+    function renderPoints() {
+      layerPoints.innerHTML = '';
+      points.forEach(p => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "point-item" + (selectedItemIds.has(p.id) ? " selected-item" : ""));
+        g.setAttribute("id", p.id);
+        g.setAttribute("transform", `translate(${p.x}, ${p.y})`);
+
+        const sym = document.createElementNS("http://www.w3.org/2000/svg", "use");
+        sym.setAttribute("href", `#rj45-${p.rot || 'r'}`);
+        g.appendChild(sym);
+
+        const hasTwo = p.lbl2 && p.lbl2.trim().length > 0;
+        const isPrefix = p.type === 'start' ? 'INÍCIO: ' : (p.type === 'end' ? 'FIM: ' : '');
+        const boxClass = p.type === 'start' ? 'tag-box-start' : (p.type === 'end' ? 'tag-box-end' : 'tag-box');
+        const textClass = p.type === 'start' ? 'tag-num-start' : (p.type === 'end' ? 'tag-num-end' : 'tag-num');
+
+        const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        const w = Math.max(76, (isPrefix.length + Math.max(p.lbl1.length, (p.lbl2||'').length)) * 7 + 10);
+        const h = hasTwo ? 26 : 18;
+        box.setAttribute("x", -w/2);
+        box.setAttribute("y", -h/2);
+        box.setAttribute("width", w);
+        box.setAttribute("height", h);
+        box.setAttribute("class", boxClass);
+        g.appendChild(box);
+
+        if (hasTwo) {
+          const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          t1.setAttribute("x", 0);
+          t1.setAttribute("y", -3.5);
+          t1.setAttribute("class", textClass);
+          t1.textContent = (p.type === 'start' ? 'INÍCIO: ' : '') + p.lbl1;
+          g.appendChild(t1);
+
+          const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          t2.setAttribute("x", 0);
+          t2.setAttribute("y", 7.5);
+          t2.setAttribute("class", p.type === 'end' ? 'tag-num-end' : 'tag-num');
+          t2.textContent = (p.type === 'end' ? 'FIM: ' : '') + p.lbl2;
+          g.appendChild(t2);
+        } else {
+          const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          t1.setAttribute("x", 0);
+          t1.setAttribute("y", 0);
+          t1.setAttribute("class", textClass);
+          t1.textContent = isPrefix + p.lbl1;
+          g.appendChild(t1);
+        }
+
+        g.addEventListener('mousedown', (e) => onElementMouseDown(e, p, 'point'));
+        g.addEventListener('click', (e) => onPointClick(e, p));
+
+        layerPoints.appendChild(g);
+      });
+      updateAudit();
+    }
+
+    function updateAudit() {
+      let count = 0;
+      points.forEach(p => {
+        count += (p.lbl2 && p.lbl2.trim().length > 0) ? 2 : 1;
+      });
+      const cftvCount = cftvs.filter(c => c.type === 'cftv').length;
+      document.getElementById('stat-points').textContent = points.length + " caixas";
+      document.getElementById('stat-cables').textContent = (count + cftvCount + 2) + " UTP";
+      document.getElementById('stat-doors').textContent = doors.length + " portas";
+      document.getElementById('stat-walls').textContent = walls.length + " paredes";
+    }
+
+    // MODOS E SISTEMA DE ARRASTE
+    let isEditMode = false;
+    let isAddPointMode = false;
+    let isAddFurnMode = false;
+    let isAddCftvMode = false;
+    let isAddPillarMode = false;
+    let isAddWallMode = false;
+    let isAddDoorMode = false;
+    let isSelectMode = false;
+
+    let pendingFurnType = null;
+    let pendingFurnRot = 0;
+    let pendingCftvType = 'cftv';
+    let pendingCftvLbl = '';
+    let pendingCftvRot = 0;
+    let pendingPillarType = 'pillar-sq';
+    let pendingPillarRot = 0;
+    let pendingWallOrient = 'v';
+    let pendingWallLen = 400;
+    let pendingDoorRot = 0;
+    let pendingDoorSize = 50;
+
+    let isSelecting = false;
+    let selectStartSvg = { x: 0, y: 0 };
+    const selectionRect = document.getElementById('selection-rect');
+
+    let activeWall = null;
+    let activeHandle = null;
+
+    function onWallHandleMouseDown(e, wall, handleName) {
+      if (!isEditMode) return;
+      e.stopPropagation();
+      pushHistory();
+      activeWall = wall;
+      activeHandle = handleName;
+    }
+
+    function toggleSelectMode() {
+      isSelectMode = !isSelectMode;
+      document.getElementById('btn-mode-select').classList.toggle('select-active', isSelectMode);
+      document.getElementById('viewport-container').classList.toggle('select-mode', isSelectMode);
+      if (isSelectMode) {
+        if (isEditMode) toggleEditMode();
+        if (isAddPointMode) toggleAddMode();
+        if (isAddFurnMode) cancelAddFurnMode();
+        if (isAddCftvMode) cancelAddCftvMode();
+        if (isAddPillarMode) cancelAddPillarMode();
+        if (isAddWallMode) cancelAddWallMode();
+        if (isAddDoorMode) cancelAddDoorMode();
+      } else {
+        clearSelection();
+      }
+    }
+
+    function clearSelection() {
+      selectedItemIds.clear();
+      updateSelectionVisuals();
+    }
+
+    function updateSelectionVisuals() {
+      document.querySelectorAll('.point-item, .furn-item, .cftv-item, .pillar-item, .wall-item, .door-item').forEach(el => {
+        if (selectedItemIds.has(el.id)) {
+          el.classList.add('selected-item');
+        } else {
+          el.classList.remove('selected-item');
+        }
+      });
+      const btnDelSel = document.getElementById('btn-delete-selected');
+      if (selectedItemIds.size > 0) {
+        btnDelSel.style.display = 'inline-flex';
+        btnDelSel.textContent = `Excluir Selecionados (${selectedItemIds.size})`;
+      } else {
+        btnDelSel.style.display = 'none';
+      }
+    }
+
+    function deleteSelectedItems() {
+      if (selectedItemIds.size === 0) return;
+      if (confirm(`Deseja excluir os ${selectedItemIds.size} itens selecionados (portas/pontos/mesas/paredes)?`)) {
+        pushHistory();
+        points = points.filter(p => !selectedItemIds.has(p.id));
+        furnitures = furnitures.filter(f => !selectedItemIds.has(f.id));
+        cftvs = cftvs.filter(c => !selectedItemIds.has(c.id));
+        pillars = pillars.filter(pil => !selectedItemIds.has(pil.id));
+        walls = walls.filter(w => !selectedItemIds.has(w.id));
+        doors = doors.filter(dr => !selectedItemIds.has(dr.id));
+        clearSelection();
+        saveCurrentState();
+        renderAll();
+      }
+    }
+
+    function toggleEditMode() {
+      isEditMode = !isEditMode;
+      document.getElementById('btn-mode-edit').classList.toggle('active', isEditMode);
+      if (isEditMode) {
+        if (isAddPointMode) toggleAddMode();
+        if (isAddFurnMode) cancelAddFurnMode();
+        if (isAddCftvMode) cancelAddCftvMode();
+        if (isAddPillarMode) cancelAddPillarMode();
+        if (isAddWallMode) cancelAddWallMode();
+        if (isAddDoorMode) cancelAddDoorMode();
+        if (isSelectMode) toggleSelectMode();
+      }
+    }
+
+    function toggleAddMode() {
+      isAddPointMode = !isAddPointMode;
+      document.getElementById('btn-mode-add').classList.toggle('active', isAddPointMode);
+      document.getElementById('viewport-container').classList.toggle('add-mode', isAddPointMode);
+      if (isAddPointMode) {
+        if (isEditMode) toggleEditMode();
+        if (isAddFurnMode) cancelAddFurnMode();
+        if (isAddCftvMode) cancelAddCftvMode();
+        if (isAddPillarMode) cancelAddPillarMode();
+        if (isAddWallMode) cancelAddWallMode();
+        if (isAddDoorMode) cancelAddDoorMode();
+        if (isSelectMode) toggleSelectMode();
+      }
+    }
+
+    // MODAL E CRIAÇÃO DE PORTAS
+    let editingDoor = null;
+
+    function openAddDoorModal() {
+      editingDoor = null;
+      document.getElementById('door-modal-title').textContent = "Adicionar Porta";
+      document.getElementById('door-modal-rot').value = "0";
+      document.getElementById('door-modal-size').value = "50";
+      document.getElementById('btn-del-door').style.display = "none";
+      document.getElementById('btn-save-door').textContent = "Posicionar Porta";
+      document.getElementById('door-modal').style.display = "block";
+    }
+
+    function closeDoorModal() {
+      document.getElementById('door-modal').style.display = "none";
+      editingDoor = null;
+    }
+
+    function confirmAddDoorPlacement() {
+      if (editingDoor) {
+        pushHistory();
+        editingDoor.rot = parseInt(document.getElementById('door-modal-rot').value, 10) || 0;
+        editingDoor.size = parseInt(document.getElementById('door-modal-size').value, 10) || 50;
+        saveCurrentState();
+        renderDoors();
+        closeDoorModal();
+        return;
+      }
+
+      pendingDoorRot = parseInt(document.getElementById('door-modal-rot').value, 10) || 0;
+      pendingDoorSize = parseInt(document.getElementById('door-modal-size').value, 10) || 50;
+      closeDoorModal();
+
+      isAddDoorMode = true;
+      document.getElementById('btn-mode-adddoor').classList.add('active');
+      document.getElementById('viewport-container').classList.add('add-mode');
+      if (isEditMode) toggleEditMode();
+      if (isAddPointMode) toggleAddMode();
+      if (isSelectMode) toggleSelectMode();
+    }
+
+    function cancelAddDoorMode() {
+      isAddDoorMode = false;
+      document.getElementById('btn-mode-adddoor').classList.remove('active');
+      document.getElementById('viewport-container').classList.remove('add-mode');
+    }
+
+    function onDoorClick(e, dr) {
+      if (isSelectMode) {
+        e.stopPropagation();
+        if (selectedItemIds.has(dr.id)) selectedItemIds.delete(dr.id);
+        else selectedItemIds.add(dr.id);
+        updateSelectionVisuals();
+        return;
+      }
+      if (hasMoved) return;
+      e.stopPropagation();
+      editingDoor = dr;
+      document.getElementById('door-modal-title').textContent = "Editar Porta";
+      document.getElementById('door-modal-rot').value = dr.rot || 0;
+      document.getElementById('door-modal-size').value = dr.size || 50;
+      document.getElementById('btn-del-door').style.display = "inline-flex";
+      document.getElementById('btn-save-door').textContent = "Salvar Alterações";
+      document.getElementById('door-modal').style.display = "block";
+    }
+
+    function deleteCurrentDoor() {
+      if (!editingDoor) return;
+      if (confirm("Deseja excluir esta porta da planta?")) {
+        pushHistory();
+        doors = doors.filter(d => d.id !== editingDoor.id);
+        saveCurrentState();
+        renderDoors();
+        closeDoorModal();
+      }
+    }
+
+    // MODAL DE PAREDE
+    function openAddWallModal() {
+      document.getElementById('wall-modal').style.display = 'block';
+    }
+    function closeWallModal() {
+      document.getElementById('wall-modal').style.display = 'none';
+    }
+    function confirmAddWallPlacement() {
+      pendingWallOrient = document.getElementById('wall-modal-orient').value;
+      pendingWallLen = parseInt(document.getElementById('wall-modal-len').value, 10) || 400;
+      closeWallModal();
+
+      isAddWallMode = true;
+      document.getElementById('btn-mode-addwall').classList.add('active');
+      document.getElementById('viewport-container').classList.add('add-mode');
+      if (isEditMode) toggleEditMode();
+      if (isAddPointMode) toggleAddMode();
+      if (isSelectMode) toggleSelectMode();
+    }
+    function cancelAddWallMode() {
+      isAddWallMode = false;
+      document.getElementById('btn-mode-addwall').classList.remove('active');
+      document.getElementById('viewport-container').classList.remove('add-mode');
+    }
+
+    // CATÁLOGO DE MÓVEIS
+    function openAddFurnCatalog() {
+      document.getElementById('furn-modal').style.display = 'block';
+      updateFurnPreview();
+    }
+    function closeFurnModal() {
+      document.getElementById('furn-modal').style.display = 'none';
+    }
+    function updateFurnPreview() {
+      const type = document.getElementById('furn-modal-type').value;
+      const rot = document.getElementById('furn-modal-rot').value;
+      const target = document.getElementById('preview-target');
+      target.innerHTML = '';
+      const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+      use.setAttribute("href", `#${type}`);
+      use.setAttribute("transform", `rotate(${rot})`);
+      target.appendChild(use);
+    }
+
+    const ghostPreview = document.getElementById('ghost-preview');
+    const ghostUse = document.getElementById('ghost-use');
+
+    function confirmAddFurnPlacement() {
+      pendingFurnType = document.getElementById('furn-modal-type').value;
+      pendingFurnRot = parseInt(document.getElementById('furn-modal-rot').value, 10) || 0;
+      closeFurnModal();
+
+      isAddFurnMode = true;
+      document.getElementById('btn-mode-furn').classList.add('active');
+      document.getElementById('viewport-container').classList.add('add-mode');
+      ghostUse.setAttribute('href', `#${pendingFurnType}`);
+      ghostPreview.style.display = 'inline';
+
+      if (isEditMode) toggleEditMode();
+      if (isAddPointMode) toggleAddMode();
+      if (isAddCftvMode) cancelAddCftvMode();
+      if (isAddPillarMode) cancelAddPillarMode();
+      if (isAddWallMode) cancelAddWallMode();
+      if (isAddDoorMode) cancelAddDoorMode();
+      if (isSelectMode) toggleSelectMode();
+    }
+
+    function cancelAddFurnMode() {
+      isAddFurnMode = false;
+      pendingFurnType = null;
+      ghostPreview.style.display = 'none';
+      document.getElementById('btn-mode-furn').classList.remove('active');
+      document.getElementById('viewport-container').classList.remove('add-mode');
+    }
+
+    // ADICIONAR E EDITAR COLUNAS / DIVISÓRIAS
+    let editingPillar = null;
+    function openAddPillarModal() {
+      editingPillar = null;
+      document.getElementById('pillar-modal-title').textContent = "Adicionar Coluna / Elemento";
+      document.getElementById('pillar-modal-type').value = 'pillar-sq';
+      document.getElementById('pillar-modal-rot').value = '0';
+      document.getElementById('btn-del-pillar').style.display = 'none';
+      document.getElementById('btn-save-pillar').textContent = "Posicionar na Planta";
+      document.getElementById('pillar-modal').style.display = 'block';
+    }
+    function closePillarModal() {
+      document.getElementById('pillar-modal').style.display = 'none';
+      editingPillar = null;
+    }
+    function confirmAddPillarPlacement() {
+      if (editingPillar) {
+        pushHistory();
+        editingPillar.type = document.getElementById('pillar-modal-type').value;
+        editingPillar.rot = parseInt(document.getElementById('pillar-modal-rot').value, 10) || 0;
+        saveCurrentState();
+        renderPillars();
+        closePillarModal();
+        return;
+      }
+
+      pendingPillarType = document.getElementById('pillar-modal-type').value;
+      pendingPillarRot = parseInt(document.getElementById('pillar-modal-rot').value, 10) || 0;
+      closePillarModal();
+
+      isAddPillarMode = true;
+      document.getElementById('btn-mode-pillar').classList.add('active');
+      document.getElementById('viewport-container').classList.add('add-mode');
+      ghostUse.setAttribute('href', `#${pendingPillarType}`);
+      ghostPreview.style.display = 'inline';
+
+      if (isEditMode) toggleEditMode();
+      if (isAddPointMode) toggleAddMode();
+      if (isAddFurnMode) cancelAddFurnMode();
+      if (isAddCftvMode) cancelAddCftvMode();
+      if (isAddWallMode) cancelAddWallMode();
+      if (isAddDoorMode) cancelAddDoorMode();
+      if (isSelectMode) toggleSelectMode();
+    }
+    function cancelAddPillarMode() {
+      isAddPillarMode = false;
+      ghostPreview.style.display = 'none';
+      document.getElementById('btn-mode-pillar').classList.remove('active');
+      document.getElementById('viewport-container').classList.remove('add-mode');
+    }
+
+    function onPillarClick(e, pil) {
+      if (isSelectMode) {
+        e.stopPropagation();
+        if (selectedItemIds.has(pil.id)) selectedItemIds.delete(pil.id);
+        else selectedItemIds.add(pil.id);
+        updateSelectionVisuals();
+        return;
+      }
+      if (hasMoved) return;
+      e.stopPropagation();
+      editingPillar = pil;
+      document.getElementById('pillar-modal-title').textContent = "Editar Coluna / Divisória";
+      document.getElementById('pillar-modal-type').value = pil.type;
+      document.getElementById('pillar-modal-rot').value = pil.rot || 0;
+      document.getElementById('btn-del-pillar').style.display = 'inline-flex';
+      document.getElementById('btn-save-pillar').textContent = "Salvar Alterações";
+      document.getElementById('pillar-modal').style.display = 'block';
+    }
+
+    function deleteCurrentPillar() {
+      if (!editingPillar) return;
+      if (confirm("Deseja excluir esta coluna ou divisória da planta?")) {
+        pushHistory();
+        pillars = pillars.filter(p => p.id !== editingPillar.id);
+        saveCurrentState();
+        renderPillars();
+        closePillarModal();
+      }
+    }
+
+    // CFTV
+    let editingCftv = null;
+    function openAddCftvModal() {
+      editingCftv = null;
+      document.getElementById('cftv-modal-title').textContent = "Adicionar CFTV / AP";
+      document.getElementById('cftv-modal-type').value = 'cftv';
+      document.getElementById('cftv-modal-lbl').value = '';
+      document.getElementById('cftv-modal-rot').value = '0';
+      document.getElementById('btn-del-cftv').style.display = 'none';
+      document.getElementById('btn-save-cftv').textContent = "Posicionar na Planta";
+      document.getElementById('cftv-modal').style.display = 'block';
+    }
+    function closeCftvModal() {
+      document.getElementById('cftv-modal').style.display = 'none';
+      editingCftv = null;
+    }
+    function confirmAddCftvPlacement() {
+      if (editingCftv) {
+        pushHistory();
+        editingCftv.type = document.getElementById('cftv-modal-type').value;
+        editingCftv.lbl = document.getElementById('cftv-modal-lbl').value.trim() || 'NOVO';
+        editingCftv.rot = parseInt(document.getElementById('cftv-modal-rot').value, 10) || 0;
+        saveCurrentState();
+        renderCftvs();
+        closeCftvModal();
+        return;
+      }
+
+      pendingCftvType = document.getElementById('cftv-modal-type').value;
+      pendingCftvLbl = document.getElementById('cftv-modal-lbl').value.trim() || (pendingCftvType === 'ap' ? '02A0719' : '02A0721');
+      pendingCftvRot = parseInt(document.getElementById('cftv-modal-rot').value, 10) || 0;
+      closeCftvModal();
+
+      isAddCftvMode = true;
+      document.getElementById('btn-mode-cftv').classList.add('active');
+      document.getElementById('viewport-container').classList.add('add-mode');
+      ghostUse.setAttribute('href', pendingCftvType === 'ap' ? '#sym-ap' : '#sym-cftv');
+      ghostPreview.style.display = 'inline';
+
+      if (isEditMode) toggleEditMode();
+      if (isAddPointMode) toggleAddMode();
+      if (isAddFurnMode) cancelAddFurnMode();
+      if (isAddPillarMode) cancelAddPillarMode();
+      if (isAddWallMode) cancelAddWallMode();
+      if (isAddDoorMode) cancelAddDoorMode();
+      if (isSelectMode) toggleSelectMode();
+    }
+    function cancelAddCftvMode() {
+      isAddCftvMode = false;
+      ghostPreview.style.display = 'none';
+      document.getElementById('btn-mode-cftv').classList.remove('active');
+      document.getElementById('viewport-container').classList.remove('add-mode');
+    }
+    function onCftvClick(e, c) {
+      if (isSelectMode) {
+        e.stopPropagation();
+        if (selectedItemIds.has(c.id)) selectedItemIds.delete(c.id);
+        else selectedItemIds.add(c.id);
+        updateSelectionVisuals();
+        return;
+      }
+      if (hasMoved) return;
+      e.stopPropagation();
+      editingCftv = c;
+      document.getElementById('cftv-modal-title').textContent = "Editar " + (c.type === 'ap' ? "AP Wi-Fi" : "Câmara CFTV");
+      document.getElementById('cftv-modal-type').value = c.type;
+      document.getElementById('cftv-modal-lbl').value = c.lbl;
+      document.getElementById('cftv-modal-rot').value = c.rot || 0;
+      document.getElementById('btn-del-cftv').style.display = 'inline-flex';
+      document.getElementById('btn-save-cftv').textContent = "Salvar Alterações";
+      document.getElementById('cftv-modal').style.display = 'block';
+    }
+    function deleteCurrentCftv() {
+      if (!editingCftv) return;
+      if (confirm(`Deseja excluir o dispositivo ${editingCftv.lbl}?`)) {
+        pushHistory();
+        cftvs = cftvs.filter(c => c.id !== editingCftv.id);
+        saveCurrentState();
+        renderCftvs();
+        closeCftvModal();
+      }
+    }
+
+    let editingFurn = null;
+    function onFurnClick(e, f) {
+      if (isSelectMode) {
+        e.stopPropagation();
+        if (selectedItemIds.has(f.id)) selectedItemIds.delete(f.id);
+        else selectedItemIds.add(f.id);
+        updateSelectionVisuals();
+        return;
+      }
+      if (hasMoved) return;
+      e.stopPropagation();
+      editingFurn = f;
+      document.getElementById('edit-furn-rot').value = f.rot || 0;
+      document.getElementById('edit-furn-modal').style.display = 'block';
+    }
+    function closeEditFurnModal() {
+      document.getElementById('edit-furn-modal').style.display = 'none';
+      editingFurn = null;
+    }
+    function saveEditFurnModal() {
+      if (!editingFurn) return;
+      pushHistory();
+      editingFurn.rot = parseInt(document.getElementById('edit-furn-rot').value, 10) || 0;
+      saveCurrentState();
+      renderFurnitures();
+      closeEditFurnModal();
+    }
+    function deleteCurrentFurn() {
+      if (!editingFurn) return;
+      if (confirm("Deseja excluir este móvel da planta?")) {
+        pushHistory();
+        furnitures = furnitures.filter(f => f.id !== editingFurn.id);
+        saveCurrentState();
+        renderFurnitures();
+        closeEditFurnModal();
+      }
+    }
+
+    let draggedItem = null;
+    let draggedType = null;
+    let dragStartX = 0, dragStartY = 0;
+    let wallOriginal = { x1: 0, y1: 0, x2: 0, y2: 0 };
+    let hasMoved = false;
+
+    function onElementMouseDown(e, item, type) {
+      if (isSelectMode) return;
+      if (!isEditMode) return;
+      e.stopPropagation();
+      draggedItem = item;
+      draggedType = type;
+      hasMoved = false;
+      const pt = getSvgCoords(e);
+
+      if (type === 'wall') {
+        dragStartX = pt.x;
+        dragStartY = pt.y;
+        wallOriginal = { x1: item.x1, y1: item.y1, x2: item.x2, y2: item.y2 };
+      } else {
+        dragStartX = pt.x - item.x;
+        dragStartY = pt.y - item.y;
+      }
+    }
+
+    function onPointClick(e, p) {
+      if (isSelectMode) {
+        e.stopPropagation();
+        if (selectedItemIds.has(p.id)) selectedItemIds.delete(p.id);
+        else selectedItemIds.add(p.id);
+        updateSelectionVisuals();
+        return;
+      }
+      if (hasMoved) return;
+      e.stopPropagation();
+      openEditModal(p);
+    }
+
+    function onRoomClick(e, r) {
+      if (isSelectMode) return;
+      if (hasMoved) return;
+      e.stopPropagation();
+      openRoomModal(r);
+    }
+
+    let editingPoint = null;
+    function openEditModal(p) {
+      editingPoint = p;
+      document.getElementById('modal-title').textContent = "Editar Ponto: " + p.lbl1;
+      document.getElementById('modal-lbl1').value = p.lbl1;
+      document.getElementById('modal-lbl2').value = p.lbl2 || "";
+      document.getElementById('modal-type').value = p.type || "mid";
+      document.getElementById('modal-rot').value = p.rot || "r";
+      document.getElementById('edit-modal').style.display = "block";
+    }
+    function closeEditModal() {
+      document.getElementById('edit-modal').style.display = "none";
+      editingPoint = null;
+    }
+    function savePointModal() {
+      if (!editingPoint) return;
+      pushHistory();
+      editingPoint.lbl1 = document.getElementById('modal-lbl1').value.trim();
+      editingPoint.lbl2 = document.getElementById('modal-lbl2').value.trim();
+      editingPoint.type = document.getElementById('modal-type').value;
+      editingPoint.rot = document.getElementById('modal-rot').value;
+      saveCurrentState();
+      renderPoints();
+      closeEditModal();
+    }
+    function deleteCurrentPoint() {
+      if (!editingPoint) return;
+      if (confirm(`Excluir o ponto ${editingPoint.lbl1}?`)) {
+        pushHistory();
+        points = points.filter(p => p.id !== editingPoint.id);
+        saveCurrentState();
+        renderPoints();
+        closeEditModal();
+      }
+    }
+
+    let editingRoom = null;
+    function openRoomModal(r) {
+      editingRoom = r;
+      document.getElementById('room-modal-name').value = r.name;
+      document.getElementById('room-modal-namesize').value = r.nameSize || 16;
+      document.getElementById('room-modal-desc').value = r.desc || "";
+      document.getElementById('room-modal-descsize').value = r.descSize || 10;
+      document.getElementById('room-modal').style.display = "block";
+    }
+    function closeRoomModal() {
+      document.getElementById('room-modal').style.display = "none";
+      editingRoom = null;
+    }
+    function saveRoomModal() {
+      if (!editingRoom) return;
+      pushHistory();
+      editingRoom.name = document.getElementById('room-modal-name').value.trim();
+      editingRoom.nameSize = parseInt(document.getElementById('room-modal-namesize').value, 10) || 16;
+      editingRoom.desc = document.getElementById('room-modal-desc').value.trim();
+      editingRoom.descSize = parseInt(document.getElementById('room-modal-descsize').value, 10) || 10;
+      saveCurrentState();
+      renderRooms();
+      closeRoomModal();
+    }
+
+    // MOTOR PAN, ZOOM & ENGINE DE MANIPULAÇÃO
+    const svg = document.getElementById('svg-cad');
+    const content = document.getElementById('canvas-content');
+    const container = document.getElementById('viewport-container');
+
+    let scale = 1, pointX = 0, pointY = 0;
+    let startX = 0, startY = 0, isPanning = false;
+
+    function updateTransform() {
+      content.setAttribute('transform', `translate(${pointX}, ${pointY}) scale(${scale})`);
+    }
+
+    function getSvgCoords(e) {
+      const rect = svg.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+      return {
+        x: (clientX - pointX) / scale * (2800 / rect.width),
+        y: (clientY - pointY) / scale * (1100 / rect.height)
+      };
+    }
+
+    container.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#cad-header') || e.target.closest('#layer-manager') || e.target.closest('#audit-box') || e.target.closest('.modal-box')) return;
+
+      // SELEÇÃO BOX
+      if (isSelectMode) {
+        isSelecting = true;
+        const pt = getSvgCoords(e);
+        selectStartSvg = pt;
+        selectionRect.setAttribute('x', pt.x);
+        selectionRect.setAttribute('y', pt.y);
+        selectionRect.setAttribute('width', 0);
+        selectionRect.setAttribute('height', 0);
+        selectionRect.style.display = 'block';
+        return;
+      }
+
+      // INSERIR PORTA
+      if (isAddDoorMode) {
+        pushHistory();
+        const pt = getSvgCoords(e);
+        const newDr = {
+          id: "dr_" + Date.now(),
+          x: Math.round(pt.x),
+          y: Math.round(pt.y),
+          rot: pendingDoorRot || 0,
+          size: pendingDoorSize || 50
+        };
+        doors.push(newDr);
+        saveCurrentState();
+        renderDoors();
+        cancelAddDoorMode();
+        return;
+      }
+
+      // INSERIR PAREDE
+      if (isAddWallMode) {
+        pushHistory();
+        const pt = getSvgCoords(e);
+        const isV = pendingWallOrient === 'v';
+        const newW = {
+          id: "w_" + Date.now(),
+          x1: Math.round(pt.x),
+          y1: Math.round(pt.y),
+          x2: Math.round(isV ? pt.x : pt.x + pendingWallLen),
+          y2: Math.round(isV ? pt.y + pendingWallLen : pt.y)
+        };
+        walls.push(newW);
+        saveCurrentState();
+        renderWalls();
+        cancelAddWallMode();
+        return;
+      }
+
+      // INSERIR PONTO
+      if (isAddPointMode) {
+        pushHistory();
+        const pt = getSvgCoords(e);
+        const newP = {
+          id: "p_" + Date.now(),
+          x: Math.round(pt.x),
+          y: Math.round(pt.y),
+          lbl1: "NOVO_PONTO",
+          lbl2: "",
+          type: "mid",
+          rot: "r"
+        };
+        points.push(newP);
+        saveCurrentState();
+        renderPoints();
+        openEditModal(newP);
+        toggleAddMode();
+        return;
+      }
+
+      // INSERIR MÓVEL
+      if (isAddFurnMode && pendingFurnType) {
+        pushHistory();
+        const pt = getSvgCoords(e);
+        const newF = {
+          id: "furn_" + Date.now(),
+          type: pendingFurnType,
+          x: Math.round(pt.x),
+          y: Math.round(pt.y),
+          rot: pendingFurnRot || 0
+        };
+        furnitures.push(newF);
+        saveCurrentState();
+        renderFurnitures();
+        cancelAddFurnMode();
+        return;
+      }
+
+      // INSERIR COLUNA
+      if (isAddPillarMode && pendingPillarType) {
+        pushHistory();
+        const pt = getSvgCoords(e);
+        const newPil = {
+          id: "pil_" + Date.now(),
+          type: pendingPillarType,
+          x: Math.round(pt.x),
+          y: Math.round(pt.y),
+          rot: pendingPillarRot || 0
+        };
+        pillars.push(newPil);
+        saveCurrentState();
+        renderPillars();
+        cancelAddPillarMode();
+        return;
+      }
+
+      // INSERIR CFTV OU AP
+      if (isAddCftvMode) {
+        pushHistory();
+        const pt = getSvgCoords(e);
+        const newC = {
+          id: "c_" + Date.now(),
+          type: pendingCftvType,
+          x: Math.round(pt.x),
+          y: Math.round(pt.y),
+          lbl: pendingCftvLbl,
+          rot: pendingCftvRot || 0
+        };
+        cftvs.push(newC);
+        saveCurrentState();
+        renderCftvs();
+        cancelAddCftvMode();
+        return;
+      }
+
+      if (!isEditMode) {
+        isPanning = true;
+        startX = e.clientX - pointX;
+        startY = e.clientY - pointY;
+        container.classList.add('panning');
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const pt = getSvgCoords(e);
+
+      // Ghost preview
+      if ((isAddFurnMode || isAddCftvMode || isAddPillarMode) && ghostPreview.style.display !== 'none') {
+        const rot = isAddFurnMode ? (pendingFurnRot||0) : (isAddPillarMode ? (pendingPillarRot||0) : (pendingCftvRot||0));
+        ghostPreview.setAttribute('transform', `translate(${pt.x}, ${pt.y}) rotate(${rot})`);
+      }
+
+      // Redimensionamento de Paredes por Alça (Grips)
+      if (activeWall && activeHandle && isEditMode) {
+        hasMoved = true;
+        if (activeHandle === 'p1') {
+          activeWall.x1 = Math.round(pt.x);
+          activeWall.y1 = Math.round(pt.y);
+        } else if (activeHandle === 'p2') {
+          activeWall.x2 = Math.round(pt.x);
+          activeWall.y2 = Math.round(pt.y);
+        }
+        renderWalls();
+        return;
+      }
+
+      // Seleção em Área
+      if (isSelecting && isSelectMode) {
+        const x = Math.min(selectStartSvg.x, pt.x);
+        const y = Math.min(selectStartSvg.y, pt.y);
+        const w = Math.abs(pt.x - selectStartSvg.x);
+        const h = Math.abs(pt.y - selectStartSvg.y);
+        selectionRect.setAttribute('x', x);
+        selectionRect.setAttribute('y', y);
+        selectionRect.setAttribute('width', w);
+        selectionRect.setAttribute('height', h);
+        return;
+      }
+
+      // Arraste Integral de Objetos
+      if (draggedItem && isEditMode) {
+        if (!hasMoved) {
+          pushHistory();
+          hasMoved = true;
+        }
+
+        if (draggedType === 'wall') {
+          const dx = pt.x - dragStartX;
+          const dy = pt.y - dragStartY;
+          draggedItem.x1 = Math.round(wallOriginal.x1 + dx);
+          draggedItem.y1 = Math.round(wallOriginal.y1 + dy);
+          draggedItem.x2 = Math.round(wallOriginal.x2 + dx);
+          draggedItem.y2 = Math.round(wallOriginal.y2 + dy);
+          renderWalls();
+        } else {
+          draggedItem.x = Math.round(pt.x - dragStartX);
+          draggedItem.y = Math.round(pt.y - dragStartY);
+          const el = document.getElementById(draggedItem.id);
+          if (el) {
+            if (draggedType === 'furn' || draggedType === 'pillar' || draggedType === 'door') {
+              el.setAttribute("transform", `translate(${draggedItem.x}, ${draggedItem.y}) rotate(${draggedItem.rot || 0})`);
+            } else {
+              el.setAttribute("transform", `translate(${draggedItem.x}, ${draggedItem.y})`);
+            }
+          }
+        }
+        return;
+      }
+
+      if (!isPanning) return;
+      pointX = e.clientX - startX;
+      pointY = e.clientY - startY;
+      updateTransform();
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (activeWall) {
+        activeWall = null;
+        activeHandle = null;
+        saveCurrentState();
+      }
+
+      if (isSelecting && isSelectMode) {
+        isSelecting = false;
+        selectionRect.style.display = 'none';
+        const pt = getSvgCoords(e);
+        const minX = Math.min(selectStartSvg.x, pt.x);
+        const maxX = Math.max(selectStartSvg.x, pt.x);
+        const minY = Math.min(selectStartSvg.y, pt.y);
+        const maxY = Math.max(selectStartSvg.y, pt.y);
+
+        if (maxX - minX < 5 && maxY - minY < 5) {
+          clearSelection();
+          return;
+        }
+
+        points.forEach(p => {
+          if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) selectedItemIds.add(p.id);
+        });
+        furnitures.forEach(f => {
+          if (f.x >= minX && f.x <= maxX && f.y >= minY && f.y <= maxY) selectedItemIds.add(f.id);
+        });
+        cftvs.forEach(c => {
+          if (c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY) selectedItemIds.add(c.id);
+        });
+        pillars.forEach(pil => {
+          if (pil.x >= minX && pil.x <= maxX && pil.y >= minY && pil.y <= maxY) selectedItemIds.add(pil.id);
+        });
+        doors.forEach(dr => {
+          if (dr.x >= minX && dr.x <= maxX && dr.y >= minY && dr.y <= maxY) selectedItemIds.add(dr.id);
+        });
+        walls.forEach(w => {
+          const midX = (w.x1 + w.x2) / 2;
+          const midY = (w.y1 + w.y2) / 2;
+          if (midX >= minX && midX <= maxX && midY >= minY && midY <= maxY) selectedItemIds.add(w.id);
+        });
+
+        updateSelectionVisuals();
+        return;
+      }
+
+      if (draggedItem) {
+        draggedItem = null;
+        draggedType = null;
+        saveCurrentState();
+      }
+      isPanning = false;
+      container.classList.remove('panning');
+    });
+
+    container.addEventListener('wheel', (e) => {
+      if (e.target.closest('#layer-manager') || e.target.closest('#audit-box') || e.target.closest('.modal-box')) return;
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      const xs = (clientX - pointX) / scale;
+      const ys = (clientY - pointY) / scale;
+      const delta = -e.deltaY;
+      scale = delta > 0 ? scale * 1.15 : scale / 1.15;
+      scale = Math.min(Math.max(0.4, scale), 8);
+
+      pointX = clientX - xs * scale;
+      pointY = clientY - ys * scale;
+      updateTransform();
+    }, { passive: false });
+
+    function zoomIn() { scale = Math.min(scale * 1.25, 8); updateTransform(); }
+    function zoomOut() { scale = Math.max(scale / 1.25, 0.4); updateTransform(); }
+    function resetView() { scale = 1; pointX = 0; pointY = 0; updateTransform(); }
+
+    function toggleLayer(layerId, visible) {
+      const el = document.getElementById(layerId);
+      if (el) el.style.display = visible ? 'inline' : 'none';
+    }
+
+    // EXPORTAR E IMPORTAR JSON COMPLETO (PORTAS + PAREDES + PONTOS + SALAS + MÓVEIS + CFTV + PILARES)
+    function exportJSON() {
+      const fullData = { points, rooms, furnitures, cftvs, pillars, walls, doors };
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute("href", dataStr);
+      a.setAttribute("download", "planta_dpe_completa.json");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function triggerImport() { document.getElementById('file-import').click(); }
+
+    function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          pushHistory();
+          if (Array.isArray(imported)) {
+            points = imported;
+          } else if (imported.points) {
+            points = imported.points || [];
+            rooms = imported.rooms || defaultRooms;
+            furnitures = imported.furnitures || defaultFurnitures;
+            cftvs = imported.cftvs || defaultCftv;
+            pillars = imported.pillars || defaultPillars;
+            walls = imported.walls || defaultWalls;
+            doors = imported.doors || defaultDoors;
+          }
+          clearSelection();
+          saveCurrentState();
+          renderAll();
+          alert("Projeto completo carregado com sucesso!");
+        } catch(err) { alert("Arquivo JSON inválido."); }
+      };
+      reader.readAsText(file);
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
