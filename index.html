@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DPE-PA | DITEC - Editor CAD Total (Busca de Pontos + Precisão + Portas)</title>
+  <title>DPE-PA | DITEC - Editor CAD Total (Portas + Paredes + Colunas + Móveis + Pontos + Busca)</title>
   <style>
     :root {
       --bg-dark: #0f172a;
@@ -14,6 +14,7 @@
       --brand-blue: #0284c7;
       --brand-cyan: #38bdf8;
       --wall-stroke: #0f172a;
+      --wall-fill: #334155;
       --furniture-stroke: #1e293b;
       --furniture-fill: #f8fafc;
       --chair-fill: #e2e8f0;
@@ -30,41 +31,48 @@
     #viewport-container.add-mode { cursor: crosshair !important; }
     #viewport-container.select-mode { cursor: crosshair !important; }
 
+    /* Barra Superior CAD com Rolagem Horizontal */
     #cad-header {
-      position: absolute; top: 0; left: 0; right: 0; height: 56px;
+      position: absolute; top: 0; left: 0; right: 0; min-height: 56px;
       background: var(--panel-bg); backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--panel-border);
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 16px; z-index: 100; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      padding: 0 14px; z-index: 100; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      overflow-x: auto; overflow-y: hidden; white-space: nowrap;
     }
-    .header-left { display: flex; align-items: center; gap: 12px; }
+    #cad-header::-webkit-scrollbar { height: 4px; }
+    #cad-header::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+
+    .header-left { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; margin-right: 14px; }
     .dpe-badge { background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px; }
-    .titles h1 { font-size: 13.5px; font-weight: 700; color: var(--brand-cyan); }
-    .titles p { font-size: 10.5px; color: var(--text-muted); }
-    .header-btns { display: flex; gap: 5px; align-items: center; }
+    .titles h1 { font-size: 13px; font-weight: 700; color: var(--brand-cyan); line-height: 1.2; }
+    .titles p { font-size: 10px; color: var(--text-muted); }
+    .header-btns { display: inline-flex; gap: 5px; align-items: center; flex-shrink: 0; }
 
     /* Barra de Busca de Pontos */
     .search-box-container {
-      display: flex; align-items: center; background: #0f172a;
+      display: inline-flex; align-items: center; background: #0f172a;
       border: 1px solid var(--panel-border); border-radius: 4px; padding: 2px 4px;
     }
     .search-input {
       background: transparent; border: none; outline: none;
       color: #fff; font-family: "Consolas", monospace; font-size: 11px;
-      padding: 4px 6px; width: 110px;
+      padding: 4px 6px; width: 105px;
     }
     .search-input::placeholder { color: var(--text-muted); }
 
     .tool-btn {
       background: #1e293b; color: var(--text-main); border: 1px solid var(--panel-border);
-      padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;
-      display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease;
+      padding: 5px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease;
     }
     .tool-btn:hover { background: var(--brand-blue); border-color: var(--brand-cyan); color: #fff; }
     .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .tool-btn.active { background: #16a34a !important; border-color: #4ade80 !important; color: #fff; }
     .tool-btn.select-active { background: #9333ea !important; border-color: #c084fc !important; color: #fff; }
     .tool-btn.danger { background: #dc2626 !important; border-color: #ef4444 !important; color: #fff; }
+    .tool-btn.highlight-json { background: #0369a1 !important; border-color: #38bdf8 !important; color: #fff; }
+    .tool-btn.highlight-load { background: #0d9488 !important; border-color: #2dd4bf !important; color: #fff; }
 
     /* Notificação Toast na Tela */
     #toast-msg {
@@ -74,7 +82,7 @@
       z-index: 300; display: none; backdrop-filter: blur(8px); border: 1px solid #f87171;
     }
 
-    /* Painel de Camadas Flutuante e Móvel */
+    /* Painel de Camadas Móvel e Flutuante */
     #layer-manager {
       position: absolute; top: 66px; right: 18px; background: var(--panel-bg);
       border: 1px solid var(--panel-border); border-radius: 8px; padding: 0 0 12px 0;
@@ -153,7 +161,6 @@
     .selected-item.wall-item line { stroke: #0284c7 !important; stroke-width: 8 !important; }
     .selected-item.door-item .door-leaf-line { stroke: #0284c7 !important; stroke-width: 5 !important; }
 
-    /* Destaque da Busca */
     @keyframes pulseSearch {
       0% { r: 10px; opacity: 1; stroke-width: 4; }
       50% { r: 40px; opacity: 0.6; stroke-width: 8; }
@@ -192,16 +199,18 @@
         <span class="dpe-badge">DPE-PA</span>
         <div class="titles">
           <h1>Editor CAD 2º Pavimento (Rede Estruturada)</h1>
-          <p>DITEC / GPA - Busca de Pontos com Localização Automática</p>
+          <p>DITEC / GPA - Painel com Rolagem + JSON Visível + Busca</p>
         </div>
       </div>
 
       <div class="header-btns">
-        <!-- Mecanismo de Busca de Pontos -->
         <div class="search-box-container">
           <input type="text" id="input-point-search" class="search-input" placeholder="Buscar Ponto..." onkeydown="handleSearchKey(event)">
           <button class="tool-btn" style="padding: 3px 8px;" onclick="searchAndLocatePoint()">Buscar</button>
         </div>
+
+        <button class="tool-btn highlight-json" onclick="exportJSON()" title="Exportar Backup JSON">Salvar JSON</button>
+        <button class="tool-btn highlight-load" onclick="triggerImport()" title="Importar Backup JSON">Carregar JSON</button>
 
         <button id="btn-undo" class="tool-btn" onclick="undo()" title="Desfazer (Ctrl+Z)" disabled>↩ Desfazer</button>
         <button id="btn-redo" class="tool-btn" onclick="redo()" title="Refazer (Ctrl+Y)" disabled>↪ Refazer</button>
@@ -215,20 +224,16 @@
         <button id="btn-mode-furn" class="tool-btn" onclick="openAddFurnCatalog()">+ Adicionar Móvel</button>
         <button id="btn-mode-pillar" class="tool-btn" onclick="openAddPillarModal()">+ Adicionar Coluna</button>
         <button id="btn-mode-cftv" class="tool-btn" onclick="openAddCftvModal()">+ Adicionar CFTV/AP</button>
-        <button class="tool-btn" onclick="exportJSON()">Salvar JSON</button>
-        <button class="tool-btn" onclick="triggerImport()">Carregar JSON</button>
         <button class="tool-btn" onclick="resetToDefault()">Restaurar Original</button>
         <button class="tool-btn" onclick="resetView()">Enquadrar</button>
         <button class="tool-btn" onclick="window.print()" style="background: var(--brand-blue);">Imprimir / PDF</button>
       </div>
     </header>
 
-    <!-- Toast de Notificação -->
     <div id="toast-msg"></div>
 
-    <input type="file" id="file-import" accept=".json" style="display:none;" onchange="importJSON(event)">
+    <input type="file" id="file-import" accept=".json,application/json,text/plain" style="display:none;" onchange="importJSON(event)">
 
-    <!-- Painel de Camadas Móvel -->
     <aside id="layer-manager">
       <div id="layer-header-drag" class="panel-header-drag" title="Arraste para mover o painel">
         <span class="panel-title">Camadas CAD</span>
@@ -685,7 +690,6 @@
           <line x1="80" y1="960" x2="320" y2="960" stroke="#64748b" stroke-width="1.8"/>
           <text x="200" y="540" font-size="19" font-weight="800" fill="#64748b" transform="rotate(-90 200 540)" text-anchor="middle" letter-spacing="4">ESCADA DE ACESSO</text>
 
-          <!-- RACK A 44U Fixo[cite: 1, 3] -->
           <rect x="2420" y="495" width="160" height="90" fill="#1e293b" stroke="#0284c7" stroke-width="3" rx="4"/>
           <text x="2500" y="535" font-size="13.5" font-weight="900" fill="#38bdf8" text-anchor="middle">RACK A (44U)</text>
           <text x="2500" y="555" font-size="9.5" font-weight="700" fill="#94a3b8" text-anchor="middle">171 CABOS CONVERGENTES</text>
@@ -731,6 +735,29 @@
   </div>
 
   <script>
+    // MOTOR PAN, ZOOM & ENGINE MATRICIAL DE PRECISÃO ABSOLUTA
+    const svg = document.getElementById('svg-cad');
+    const content = document.getElementById('canvas-content');
+    const container = document.getElementById('viewport-container');
+
+    let scale = 1, pointX = 0, pointY = 0;
+    let startX = 0, startY = 0, isPanning = false;
+
+    function updateTransform() {
+      content.setAttribute('transform', `translate(${pointX}, ${pointY}) scale(${scale})`);
+    }
+
+    function getSvgCoords(e) {
+      const ctm = content.getScreenCTM();
+      if (!ctm) return { x: 0, y: 0 };
+      const inverse = ctm.inverse();
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const svgPt = pt.matrixTransform(inverse);
+      return { x: svgPt.x, y: svgPt.y };
+    }
+
     // BASE DE DADOS ORIGINAL DE PORTAS
     const defaultDoors = [
       { id: "dr_1", x: 330, y: 480, type: "up-right", size: 55 },
@@ -945,13 +972,13 @@
     let clipboard = null;
     let lastMouseSvg = { x: 1400, y: 550 };
 
-    const STORAGE_KEY_POINTS = 'dpe_pa_cad_points_v11';
-    const STORAGE_KEY_ROOMS = 'dpe_pa_cad_rooms_v11';
-    const STORAGE_KEY_FURN = 'dpe_pa_cad_furn_v11';
-    const STORAGE_KEY_CFTV = 'dpe_pa_cad_cftv_v11';
-    const STORAGE_KEY_PILLARS = 'dpe_pa_cad_pillars_v11';
-    const STORAGE_KEY_WALLS = 'dpe_pa_cad_walls_v11';
-    const STORAGE_KEY_DOORS = 'dpe_pa_cad_doors_v11';
+    const STORAGE_KEY_POINTS = 'dpe_pa_cad_points_v12';
+    const STORAGE_KEY_ROOMS = 'dpe_pa_cad_rooms_v12';
+    const STORAGE_KEY_FURN = 'dpe_pa_cad_furn_v12';
+    const STORAGE_KEY_CFTV = 'dpe_pa_cad_cftv_v12';
+    const STORAGE_KEY_PILLARS = 'dpe_pa_cad_pillars_v12';
+    const STORAGE_KEY_WALLS = 'dpe_pa_cad_walls_v12';
+    const STORAGE_KEY_DOORS = 'dpe_pa_cad_doors_v12';
 
     const undoStack = [];
     const redoStack = [];
@@ -1186,6 +1213,29 @@
       updateSelectionVisuals();
     }
 
+    function updateSelectionVisuals() {
+      document.querySelectorAll('.point-item, .furn-item, .cftv-item, .pillar-item, .wall-item, .door-item').forEach(el => {
+        if (typeof selectedItemIds !== 'undefined' && selectedItemIds.has(el.id)) {
+          el.classList.add('selected-item');
+        } else {
+          el.classList.remove('selected-item');
+        }
+      });
+      const btnDelSel = document.getElementById('btn-delete-selected');
+      const btnDupSel = document.getElementById('btn-duplicate');
+      const count = typeof selectedItemIds !== 'undefined' ? selectedItemIds.size : 0;
+      if (count > 0) {
+        if (btnDelSel) {
+          btnDelSel.style.display = 'inline-flex';
+          btnDelSel.textContent = `Excluir Selecionados (${count})`;
+        }
+        if (btnDupSel) btnDupSel.style.display = 'inline-flex';
+      } else {
+        if (btnDelSel) btnDelSel.style.display = 'none';
+        if (btnDupSel) btnDupSel.style.display = 'none';
+      }
+    }
+
     function resetToDefault() {
       if (confirm("Deseja restaurar todos os elementos (portas, paredes, móveis, pontos e salas) para a posição original de projeto?")) {
         pushHistory();
@@ -1231,13 +1281,11 @@
         return;
       }
 
-      // 1. Procura na lista de Pontos RJ45
       let found = points.find(p => 
         (p.lbl1 && p.lbl1.toUpperCase() === query) || 
         (p.lbl2 && p.lbl2.toUpperCase() === query)
       );
 
-      // Se não achou exato, tenta correspondência parcial
       if (!found) {
         found = points.find(p => 
           (p.lbl1 && p.lbl1.toUpperCase().includes(query)) || 
@@ -1245,23 +1293,15 @@
         );
       }
 
-      // 2. Se não achou em Pontos, procura em CFTV e APs
-      let foundType = 'point';
       if (!found) {
         found = cftvs.find(c => (c.lbl && c.lbl.toUpperCase() === query) || (c.lbl && c.lbl.toUpperCase().includes(query)));
-        if (found) foundType = 'cftv';
       }
 
       if (found) {
-        // Encontrou: Centraliza a tela e dá zoom no ponto
         scale = 2.8;
         const rect = svg.getBoundingClientRect();
-        
-        // Converte coordenadas do SVG para o centro da tela
         const screenMidX = rect.width / 2;
         const screenMidY = rect.height / 2;
-        
-        // Coordenada do centro do SVG projetada
         const targetSvgX = found.x * (rect.width / 2800);
         const targetSvgY = found.y * (rect.height / 1100);
 
@@ -1269,25 +1309,21 @@
         pointY = screenMidY - (targetSvgY * scale);
         updateTransform();
 
-        // Cria o anel de destaque pulsante no local
         const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         halo.setAttribute("cx", found.x);
         halo.setAttribute("cy", found.y);
         halo.setAttribute("class", "search-target-halo");
         layerSearchTarget.appendChild(halo);
 
-        // Seleciona o item encontrado
         selectedItemIds.clear();
         selectedItemIds.add(found.id);
         updateSelectionVisuals();
 
-        // Remove o halo visual após 5 segundos
         setTimeout(() => {
           layerSearchTarget.innerHTML = '';
         }, 5000);
 
       } else {
-        // Não encontrou na planta
         showToast(`O ponto "${query}" não está na planta!`);
       }
     }
@@ -1359,12 +1395,7 @@
         layerDoorsAll.appendChild(g);
       });
       updateAudit();
-      
     }
-
-    function updateAudit() {
-    // Função de auditoria/atualização
-}
 
     // RENDERIZAR PAREDES
     const layerWallsDynamic = document.getElementById('layer-walls-dynamic');
@@ -1574,7 +1605,9 @@
       updateAudit();
     }
 
-    // MODOS E ARRASTE
+    // ==========================================
+    // BLOCO RECUPERADO: MODOS E VARIÁVEIS DE CONTROLE
+    // ==========================================
     let isEditMode = false;
     let isAddPointMode = false;
     let isAddFurnMode = false;
@@ -1613,45 +1646,55 @@
 
     function toggleSelectMode() {
       isSelectMode = !isSelectMode;
-      document.getElementById('btn-mode-select').classList.toggle('select-active', isSelectMode);
-      document.getElementById('viewport-container').classList.toggle('select-mode', isSelectMode);
+      const btn = document.getElementById('btn-mode-select');
+      const vPort = document.getElementById('viewport-container');
+      if (btn) btn.classList.toggle('select-active', isSelectMode);
+      if (vPort) vPort.classList.toggle('select-mode', isSelectMode);
       if (isSelectMode) {
         if (isEditMode) toggleEditMode();
         if (isAddPointMode) toggleAddMode();
-        if (isAddFurnMode) cancelAddFurnMode();
-        if (isAddCftvMode) cancelAddCftvMode();
-        if (isAddPillarMode) cancelAddPillarMode();
-        if (isAddWallMode) cancelAddWallMode();
-        if (isAddDoorMode) cancelAddDoorMode();
+        if (isAddFurnMode && typeof cancelAddFurnMode === 'function') cancelAddFurnMode();
+        if (isAddCftvMode && typeof cancelAddCftvMode === 'function') cancelAddCftvMode();
+        if (isAddPillarMode && typeof cancelAddPillarMode === 'function') cancelAddPillarMode();
+        if (isAddWallMode && typeof cancelAddWallMode === 'function') cancelAddWallMode();
+        if (isAddDoorMode && typeof cancelAddDoorMode === 'function') cancelAddDoorMode();
       } else {
         clearSelection();
       }
     }
 
     function clearSelection() {
-      selectedItemIds.clear();
+      if (typeof selectedItemIds !== 'undefined') {
+        selectedItemIds.clear();
+      }
       updateSelectionVisuals();
     }
 
     function updateSelectionVisuals() {
       document.querySelectorAll('.point-item, .furn-item, .cftv-item, .pillar-item, .wall-item, .door-item').forEach(el => {
-        if (selectedItemIds.has(el.id)) el.classList.add('selected-item');
-        else el.classList.remove('selected-item');
+        if (typeof selectedItemIds !== 'undefined' && selectedItemIds.has(el.id)) {
+          el.classList.add('selected-item');
+        } else {
+          el.classList.remove('selected-item');
+        }
       });
       const btnDelSel = document.getElementById('btn-delete-selected');
       const btnDupSel = document.getElementById('btn-duplicate');
-      if (selectedItemIds.size > 0) {
-        btnDelSel.style.display = 'inline-flex';
-        btnDelSel.textContent = `Excluir Selecionados (${selectedItemIds.size})`;
-        btnDupSel.style.display = 'inline-flex';
+      const count = typeof selectedItemIds !== 'undefined' ? selectedItemIds.size : 0;
+      if (count > 0) {
+        if (btnDelSel) {
+          btnDelSel.style.display = 'inline-flex';
+          btnDelSel.textContent = `Excluir Selecionados (${count})`;
+        }
+        if (btnDupSel) btnDupSel.style.display = 'inline-flex';
       } else {
-        btnDelSel.style.display = 'none';
-        btnDupSel.style.display = 'none';
+        if (btnDelSel) btnDelSel.style.display = 'none';
+        if (btnDupSel) btnDupSel.style.display = 'none';
       }
     }
 
     function deleteSelectedItems() {
-      if (selectedItemIds.size === 0) return;
+      if (!selectedItemIds || selectedItemIds.size === 0) return;
       if (confirm(`Deseja excluir os ${selectedItemIds.size} itens selecionados?`)) {
         pushHistory();
         points = points.filter(p => !selectedItemIds.has(p.id));
@@ -1668,34 +1711,49 @@
 
     function toggleEditMode() {
       isEditMode = !isEditMode;
-      document.getElementById('btn-mode-edit').classList.toggle('active', isEditMode);
+      const btn = document.getElementById('btn-mode-edit');
+      if (btn) btn.classList.toggle('active', isEditMode);
       if (isEditMode) {
         if (isAddPointMode) toggleAddMode();
-        if (isAddFurnMode) cancelAddFurnMode();
-        if (isAddCftvMode) cancelAddCftvMode();
-        if (isAddPillarMode) cancelAddPillarMode();
-        if (isAddWallMode) cancelAddWallMode();
-        if (isAddDoorMode) cancelAddDoorMode();
+        if (isAddFurnMode && typeof cancelAddFurnMode === 'function') cancelAddFurnMode();
+        if (isAddCftvMode && typeof cancelAddCftvMode === 'function') cancelAddCftvMode();
+        if (isAddPillarMode && typeof cancelAddPillarMode === 'function') cancelAddPillarMode();
+        if (isAddWallMode && typeof cancelAddWallMode === 'function') cancelAddWallMode();
+        if (isAddDoorMode && typeof cancelAddDoorMode === 'function') cancelAddDoorMode();
         if (isSelectMode) toggleSelectMode();
       }
     }
 
     function toggleAddMode() {
       isAddPointMode = !isAddPointMode;
-      document.getElementById('btn-mode-add').classList.toggle('active', isAddPointMode);
-      document.getElementById('viewport-container').classList.toggle('add-mode', isAddPointMode);
+      const btn = document.getElementById('btn-mode-add');
+      const vPort = document.getElementById('viewport-container');
+      if (btn) btn.classList.toggle('active', isAddPointMode);
+      if (vPort) vPort.classList.toggle('add-mode', isAddPointMode);
       if (isAddPointMode) {
         if (isEditMode) toggleEditMode();
-        if (isAddFurnMode) cancelAddFurnMode();
-        if (isAddCftvMode) cancelAddCftvMode();
-        if (isAddPillarMode) cancelAddPillarMode();
-        if (isAddWallMode) cancelAddWallMode();
-        if (isAddDoorMode) cancelAddDoorMode();
+        if (isAddFurnMode && typeof cancelAddFurnMode === 'function') cancelAddFurnMode();
+        if (isAddCftvMode && typeof cancelAddCftvMode === 'function') cancelAddCftvMode();
+        if (isAddPillarMode && typeof cancelAddPillarMode === 'function') cancelAddPillarMode();
+        if (isAddWallMode && typeof cancelAddWallMode === 'function') cancelAddWallMode();
+        if (isAddDoorMode && typeof cancelAddDoorMode === 'function') cancelAddDoorMode();
         if (isSelectMode) toggleSelectMode();
       }
     }
 
-    // MODAL DE PORTAS
+    function updateAudit() {
+      let count = 0;
+      points.forEach(p => {
+        count += (p.lbl2 && p.lbl2.trim().length > 0) ? 2 : 1;
+      });
+      const cftvCount = cftvs.filter(c => c.type === 'cftv').length;
+      document.getElementById('stat-points').textContent = points.length + " caixas";
+      document.getElementById('stat-cables').textContent = (count + cftvCount + 2) + " UTP";
+      document.getElementById('stat-doors').textContent = doors.length + " portas";
+      document.getElementById('stat-walls').textContent = walls.length + " paredes";
+    }
+
+    // MODAL E CRIAÇÃO DE PORTAS
     let editingDoor = null;
     function openAddDoorModal() {
       editingDoor = null;
@@ -2147,30 +2205,6 @@
       closeRoomModal();
     }
 
-    // MOTOR PAN, ZOOM & ENGINE MATRICIAL DE PRECISÃO ABSOLUTA
-    const svg = document.getElementById('svg-cad');
-    const content = document.getElementById('canvas-content');
-    const container = document.getElementById('viewport-container');
-
-    let scale = 1, pointX = 0, pointY = 0;
-    let startX = 0, startY = 0, isPanning = false;
-
-    function updateTransform() {
-      content.setAttribute('transform', `translate(${pointX}, ${pointY}) scale(${scale})`);
-    }
-
-    // CÁLCULO VETORIAL PRECISO (MATRIZ INVERSA DO NAVEGADOR)
-    function getSvgCoords(e) {
-      const ctm = content.getScreenCTM();
-      if (!ctm) return { x: 0, y: 0 };
-      const inverse = ctm.inverse();
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const svgPt = pt.matrixTransform(inverse);
-      return { x: svgPt.x, y: svgPt.y };
-    }
-
     container.addEventListener('mousedown', (e) => {
       if (e.target.closest('#cad-header') || e.target.closest('#layer-manager') || e.target.closest('#audit-box') || e.target.closest('.modal-box')) return;
 
@@ -2462,7 +2496,7 @@
       if (el) el.style.display = visible ? 'inline' : 'none';
     }
 
-    // EXPORTAR E IMPORTAR JSON COMPLETO
+    // EXPORTAR E IMPORTAR JSON COMPLETO (COMPATIBILIDADE UNIVERSAL)
     function exportJSON() {
       const fullData = { points, rooms, furnitures, cftvs, pillars, walls, doors };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
@@ -2474,34 +2508,68 @@
       a.remove();
     }
 
-    function triggerImport() { document.getElementById('file-import').click(); }
+    function triggerImport() {
+      const input = document.getElementById('file-import');
+      input.value = ''; // Limpa o seletor para permitir carregar o mesmo arquivo repetidas vezes
+      input.click();
+    }
 
     function importJSON(event) {
       const file = event.target.files[0];
       if (!file) return;
+
       const reader = new FileReader();
       reader.onload = (e) => {
+        let raw = e.target.result;
+        
         try {
-          const imported = JSON.parse(e.target.result);
-          pushHistory();
+          if (typeof raw !== 'string') throw new Error("Formato inválido.");
+
+          // Limpeza de caracteres ocultos (BOM UTF-8) e URI
+          raw = raw.replace(/^\uFEFF/, '').trim();
+          if (raw.startsWith('%7B') || raw.startsWith('%5B')) {
+            raw = decodeURIComponent(raw);
+          }
+
+          const imported = JSON.parse(raw);
+
+          if (typeof pushHistory === 'function') pushHistory();
+
+          // Carrega os dados de forma flexível
           if (Array.isArray(imported)) {
             points = imported;
-          } else if (imported.points) {
-            points = imported.points || [];
-            rooms = imported.rooms || defaultRooms;
-            furnitures = imported.furnitures || defaultFurnitures;
-            cftvs = imported.cftvs || defaultCftv;
-            pillars = imported.pillars || defaultPillars;
-            walls = imported.walls || defaultWalls;
-            doors = imported.doors || defaultDoors;
+          } else if (typeof imported === 'object' && imported !== null) {
+            points = imported.points || imported.pontos || points;
+            rooms = imported.rooms || imported.salas || rooms;
+            furnitures = imported.furnitures || imported.moveis || furnitures;
+            cftvs = imported.cftvs || imported.cftv || cftvs;
+            pillars = imported.pillars || imported.colunas || pillars;
+            walls = imported.walls || imported.paredes || walls;
+            doors = imported.doors || imported.portas || doors;
+          } else {
+            throw new Error("Estrutura não reconhecida.");
           }
-          clearSelection();
-          saveCurrentState();
-          renderAll();
-          alert("Projeto completo carregado com sucesso!");
-        } catch(err) { alert("Arquivo JSON inválido."); }
+
+          // Limpa seleção de forma segura sem quebrar se a função não existir
+          if (typeof selectedItemIds !== 'undefined' && selectedItemIds.clear) {
+            selectedItemIds.clear();
+          }
+          if (typeof clearSelection === 'function') {
+            clearSelection();
+          }
+
+          // Salva e renderiza
+          if (typeof saveCurrentState === 'function') saveCurrentState();
+          if (typeof renderAll === 'function') renderAll();
+
+          alert("Arquivo JSON carregado com sucesso!");
+        } catch(err) {
+          console.error("Erro na importação:", err);
+          alert("Erro: " + err.message);
+        }
       };
-      reader.readAsText(file);
+
+      reader.readAsText(file, "UTF-8");
     }
 
     // ARRASTE DO PAINEL DE CAMADAS
